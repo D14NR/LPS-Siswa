@@ -743,7 +743,7 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-red-50 text-slate-900">
+    <div className="flex h-screen flex-col bg-gradient-to-br from-slate-100 via-white to-red-50 text-slate-900">
       <header className="border-b border-slate-200 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-5">
           <div className="flex items-center gap-3">
@@ -798,87 +798,91 @@ export function App() {
         </div>
       </header>
 
-      <div
-        className={`mx-auto grid max-w-7xl gap-6 px-6 py-8 ${
-          isSidebarCollapsed ? "lg:grid-cols-[92px_1fr]" : "lg:grid-cols-[260px_1fr]"
-        }`}
-      >
-        <aside
-          className={`space-y-4 transition-all ${
-            isSidebarOpen ? "block" : "hidden"
-          } lg:block ${isSidebarCollapsed ? "lg:w-[92px]" : "lg:w-auto"}`}
+      <div className="flex-1 overflow-hidden">
+        <div
+          className={`mx-auto grid h-full max-w-7xl gap-6 px-6 py-8 ${
+            isSidebarCollapsed ? "lg:grid-cols-[92px_1fr]" : "lg:grid-cols-[260px_1fr]"
+          }`}
         >
-          <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p
-                className={`text-xs font-semibold uppercase tracking-[0.3em] text-slate-400 ${
-                  isSidebarCollapsed ? "sr-only" : ""}
-                `}
-              >
-                Menu Rapor
-              </p>
-              <button
-                onClick={() => setIsSidebarCollapsed((prev) => !prev)}
-                className={`hidden rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-widest text-slate-500 shadow-sm transition hover:border-red-200 hover:text-red-600 lg:inline-flex ${
-                  isSidebarCollapsed ? "w-full" : ""
-                }`}
-              >
-                {isSidebarCollapsed ? "Buka Menu" : "Perkecil"}
-              </button>
-            </div>
-            <nav className="mt-4 space-y-2">
-              {MENU_ITEMS.map((item) => {
-                const icon = item === "Dashboard Siswa" ? "🏠" : item === "Jadwal Reguler" ? "📅" : item === "Jadwal Tambahan" ? "🗓️" : item === "Riwayat Presensi" ? "📝" : item === "Riwayat Perkembangan Belajar" ? "📈" : item === "Riwayat Nilai Tes" ? "🏆" : "🎯";
-                return (
-                  <button
-                    key={item}
-                    onClick={() => {
-                      setActiveMenu(item);
-                      setIsSidebarOpen(false);
-                    }}
-                    className={`flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
-                      activeMenu === item
-                        ? "bg-red-600 text-white shadow-lg shadow-red-200"
-                        : "bg-slate-50 text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    <span className="flex items-center gap-3">
-                      <span className="text-lg">{icon}</span>
-                      <span className={isSidebarCollapsed ? "sr-only" : ""}>{item}</span>
-                    </span>
-                    <span className={`text-xs opacity-70 ${isSidebarCollapsed ? "sr-only" : ""}`}>›</span>
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-          <div
-            className={`rounded-3xl border border-slate-200 bg-white/90 p-5 text-sm text-slate-600 shadow-sm ${
-              isSidebarCollapsed ? "hidden lg:block" : ""
-            }`}
+          <aside
+            className={`space-y-4 transition-all ${
+              isSidebarOpen ? "block" : "hidden"
+            } lg:block ${isSidebarCollapsed ? "lg:w-[92px]" : "lg:w-auto"} lg:h-full lg:overflow-y-auto`}
           >
-            <p className="font-semibold text-slate-700">Sumber Data</p>
-            <p className="mt-2 text-xs text-slate-500">
-              Sistem menarik data langsung dari basis data terpusat yang diperbarui
-              secara berkala untuk kebutuhan rapor.
-            </p>
-          </div>
-        </aside>
+            <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <p
+                  className={`text-xs font-semibold uppercase tracking-[0.3em] text-slate-400 ${
+                    isSidebarCollapsed ? "sr-only" : ""}
+                  `}
+                >
+                  Menu Rapor
+                </p>
+                <button
+                  onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+                  className={`hidden rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-widest text-slate-500 shadow-sm transition hover:border-red-200 hover:text-red-600 lg:inline-flex ${
+                    isSidebarCollapsed ? "w-full" : ""
+                  }`}
+                >
+                  {isSidebarCollapsed ? "Buka Menu" : "Perkecil"}
+                </button>
+              </div>
+              <nav className="mt-4 space-y-2">
+                {MENU_ITEMS.map((item) => {
+                  const icon = item === "Dashboard Siswa" ? "🏠" : item === "Jadwal Reguler" ? "📅" : item === "Jadwal Tambahan" ? "🗓️" : item === "Riwayat Presensi" ? "📝" : item === "Riwayat Perkembangan Belajar" ? "📈" : item === "Riwayat Nilai Tes" ? "🏆" : "🎯";
+                  return (
+                    <button
+                      key={item}
+                      onClick={() => {
+                        setActiveMenu(item);
+                        setIsSidebarOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
+                        activeMenu === item
+                          ? "bg-red-600 text-white shadow-lg shadow-red-200"
+                          : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      <span className="flex items-center gap-3">
+                        <span className="text-lg">{icon}</span>
+                        <span className={isSidebarCollapsed ? "sr-only" : ""}>{item}</span>
+                      </span>
+                      <span className={`text-xs opacity-70 ${isSidebarCollapsed ? "sr-only" : ""}`}>›</span>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+            <div
+              className={`rounded-3xl border border-slate-200 bg-white/90 p-5 text-sm text-slate-600 shadow-sm ${
+                isSidebarCollapsed ? "hidden lg:block" : ""
+              }`}
+            >
+              <p className="font-semibold text-slate-700">Sumber Data</p>
+              <p className="mt-2 text-xs text-slate-500">
+                Sistem menarik data langsung dari basis data terpusat yang diperbarui
+                secara berkala untuk kebutuhan rapor.
+              </p>
+            </div>
+          </aside>
 
-        <main className="space-y-6">
-          <div className="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-sm">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-              {activeMenu}
-            </p>
-            <h2 className="mt-2 text-xl font-semibold text-slate-900">
-              {activeMenu}
-            </h2>
-            <p className="mt-2 text-sm text-slate-500">
-              Pantau informasi siswa dan histori belajar secara terstruktur.
-            </p>
-          </div>
-          {renderContent()}
-        </main>
+          <main className="flex h-full flex-col overflow-hidden">
+            <div className="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                {activeMenu}
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-slate-900">
+                {activeMenu}
+              </h2>
+              <p className="mt-2 text-sm text-slate-500">
+                Pantau informasi siswa dan histori belajar secara terstruktur.
+              </p>
+            </div>
+            <div className="mt-6 flex-1 overflow-y-auto pr-1">
+              {renderContent()}
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   );
