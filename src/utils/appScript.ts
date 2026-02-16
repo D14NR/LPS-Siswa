@@ -16,11 +16,11 @@ export async function postAppScript(route: string, payload: AppScriptPayload) {
     }
 
     if (!response.ok) {
-      throw new Error("Gagal menyimpan data ke spreadsheet.");
+      throw new Error("Gagal menyimpan data ke basis data.");
     }
 
     return response.json().catch(() => ({}));
   } catch (error) {
-    throw error instanceof Error ? error : new Error("Gagal menyimpan data ke spreadsheet.");
+    throw error instanceof Error ? error : new Error("Gagal menyimpan data ke basis data.");
   }
 }

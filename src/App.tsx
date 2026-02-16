@@ -5,6 +5,7 @@ import { PresensiPage } from "@/pages/PresensiPage";
 import { PerkembanganPage } from "@/pages/PerkembanganPage";
 import { NilaiPage } from "@/pages/NilaiPage";
 import { PelayananPage } from "@/pages/PelayananPage";
+import { PengajarPage } from "@/pages/PengajarPage";
 import type { DashboardCards, ScheduleColumn } from "@/components/dataDashboard";
 import {
   parseScheduleValue,
@@ -21,6 +22,7 @@ const MENU_ITEMS = [
   "Riwayat Perkembangan Belajar",
   "Riwayat Nilai Tes",
   "Riwayat Pelayanan/Tambahan",
+  "No. Whatsapp Pengajar",
 ];
 
 const SHEETS = {
@@ -51,6 +53,10 @@ const SHEETS = {
   pengajar: {
     id: "1PQNdVQUJa-YQaWv-KZdIC7WE3VVlRAxpX5XT79NMJos",
     sheet: "Pengajar",
+  },
+  waPengajar: {
+    id: "1PQNdVQUJa-YQaWv-KZdIC7WE3VVlRAxpX5XT79NMJos",
+    sheet: "Wa_Pengajar",
   },
 };
 
@@ -274,6 +280,7 @@ export function App() {
     data: [],
   });
   const [pengajar, setPengajar] = useState<TableData>({ headers: [], data: [] });
+  const [waPengajar, setWaPengajar] = useState<TableData>({ headers: [], data: [] });
   const [nilaiTes, setNilaiTes] = useState<Record<string, TableData>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -301,6 +308,7 @@ export function App() {
           perkembanganText,
           pelayananText,
           pengajarText,
+          waPengajarText,
           ...nilaiTexts
         ] = await Promise.all([
           fetchSheetText(SHEETS.biodata.id, SHEETS.biodata.sheet),
@@ -310,6 +318,7 @@ export function App() {
           fetchSheetText(SHEETS.perkembangan.id, SHEETS.perkembangan.sheet),
           fetchSheetText(SHEETS.pelayanan.id, SHEETS.pelayanan.sheet),
           fetchSheetText(SHEETS.pengajar.id, SHEETS.pengajar.sheet),
+          fetchSheetText(SHEETS.waPengajar.id, SHEETS.waPengajar.sheet),
           ...nilaiRequests,
         ]);
 
@@ -324,6 +333,7 @@ export function App() {
         setPerkembangan(formatRows(parseCSV(perkembanganText || "")));
         setPelayanan(formatRows(parseCSV(pelayananText || "")));
         setPengajar(formatRows(parseCSV(pengajarText || "")));
+        setWaPengajar(formatRows(parseCSV(waPengajarText || "")));
 
         const nilaiData: Record<string, TableData> = {};
         NILAI_SHEETS.forEach((item, index) => {
@@ -528,6 +538,26 @@ export function App() {
       .filter((row) => row.Pengajar || row["Mata Pelajaran"]);
   }, [pengajar]);
 
+  const waPengajarRecords = useMemo<RowRecord[]>(() => {
+    if (!waPengajar.headers.length && waPengajar.data.length === 0) return [];
+    const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, "");
+    const headers = waPengajar.headers;
+    const hasHeaders = headers.some((header) => normalize(header) === "pengajar");
+    if (hasHeaders) {
+      return waPengajar.data.map((row) => rowToRecord(headers, row));
+    }
+
+    const rows = [headers, ...waPengajar.data]
+      .map((row) => ({
+        Pengajar: row[0] ?? "",
+        "Mata Pelajaran": row[1] ?? "",
+        "No. Whatsapp": row[2] ?? "",
+      }))
+      .filter((row) => row.Pengajar || row["Mata Pelajaran"] || row["No. Whatsapp"]);
+
+    return rows;
+  }, [waPengajar]);
+
   const latestPresensi = useMemo<RowRecord | null>(
     () => (activeNis ? getLatestRow(presensi, activeNis) : null),
     [presensi, activeNis]
@@ -680,6 +710,14 @@ export function App() {
         });
         return <NilaiPage selectedStudent={selectedStudent} datasets={datasets} />;
       }
+      case "No. Whatsapp Pengajar": {
+        return (
+          <PengajarPage
+            pengajarRows={waPengajarRecords}
+            selectedStudent={selectedStudent}
+          />
+        );
+      }
       default:
         return (
           <PlaceholderSection
@@ -829,7 +867,7 @@ export function App() {
               </div>
               <nav className="mt-4 space-y-2">
                 {MENU_ITEMS.map((item) => {
-                  const icon = item === "Dashboard Siswa" ? "🏠" : item === "Jadwal Reguler" ? "📅" : item === "Jadwal Tambahan" ? "🗓️" : item === "Riwayat Presensi" ? "📝" : item === "Riwayat Perkembangan Belajar" ? "📈" : item === "Riwayat Nilai Tes" ? "🏆" : "🎯";
+                  const icon = item === "Dashboard Siswa" ? "🏠" : item === "Jadwal Reguler" ? "📅" : item === "Jadwal Tambahan" ? "🗓️" : item === "Riwayat Presensi" ? "📝" : item === "Riwayat Perkembangan Belajar" ? "📈" : item === "Riwayat Nilai Tes" ? "🏆" : item === "Riwayat Pelayanan/Tambahan" ? "🎯" : "📞";
                   return (
                     <button
                       key={item}
