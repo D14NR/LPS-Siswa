@@ -16,6 +16,7 @@ type DashboardPageProps = {
   latestPerkembangan: RowRecord | null;
   latestNilai: RowRecord | null;
   latestPelayanan: RowRecord | null;
+  latestPermintaan: RowRecord | null;
 };
 
 export function DashboardPage({
@@ -26,6 +27,7 @@ export function DashboardPage({
   latestPerkembangan,
   latestNilai,
   latestPelayanan,
+  latestPermintaan,
 }: DashboardPageProps) {
   if (!selectedStudent) {
     return <EmptyState message="Data siswa belum tersedia. Silakan masuk ulang." />;
@@ -52,7 +54,7 @@ export function DashboardPage({
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
           <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">
             Jadwal hari ini
@@ -145,7 +147,33 @@ export function DashboardPage({
           </div>
         </div>
 
-        <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100 lg:col-span-2">
+        <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
+          <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">
+            Permintaan Pelayanan Terakhir
+          </h3>
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            {latestPermintaan ? (
+              <div className="space-y-2">
+                <p className="text-sm text-slate-500">
+                  {renderDateValue(latestPermintaan)}
+                </p>
+                <p className="text-base font-semibold text-slate-900">
+                  {renderRowValue(latestPermintaan, "Mata Pelajaran") || "-"}
+                </p>
+                <p className="text-sm text-slate-500">
+                  Pengajar: {renderRowValue(latestPermintaan, "Pengajar") || "-"}
+                </p>
+                <p className="text-sm text-slate-500">
+                  Status: {renderRowValue(latestPermintaan, "Status") || "Menunggu"}
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">Belum ada data permintaan pelayanan.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
           <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">
             Pelayanan/Jam Tambahan Terakhir
           </h3>

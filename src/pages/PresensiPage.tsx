@@ -30,6 +30,19 @@ export function PresensiPage({
   pengajarRows,
 }: PresensiPageProps) {
   const [page, setPage] = useState(1);
+  const statusSummary = useMemo(() => {
+    const summary = { Hadir: 0, Sakit: 0, Izin: 0, Alpha: 0 };
+    presensiRows.forEach((row) => {
+      const status = (getRowValue(row, "Status") || "").toLowerCase();
+      if (status === "hadir") summary.Hadir += 1;
+      if (status === "sakit") summary.Sakit += 1;
+      if (status === "izin") summary.Izin += 1;
+      if (status === "alpha") summary.Alpha += 1;
+    });
+    const total = summary.Hadir + summary.Sakit + summary.Izin + summary.Alpha;
+    const most = Object.entries(summary).sort((a, b) => b[1] - a[1])[0];
+    return { summary, total, most: most?.[0] || "-" };
+  }, [presensiRows]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formState, setFormState] = useState({
     tanggal: "",
@@ -154,6 +167,48 @@ export function PresensiPage({
         </div>
       </div>
 
+      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+        <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
+          <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">Grafik Presensi</h3>
+          <div className="mt-4 space-y-4">
+            {([
+              { label: "Hadir", value: statusSummary.summary.Hadir, color: "bg-emerald-500" },
+              { label: "Sakit", value: statusSummary.summary.Sakit, color: "bg-rose-500" },
+              { label: "Izin", value: statusSummary.summary.Izin, color: "bg-amber-500" },
+              { label: "Alpha", value: statusSummary.summary.Alpha, color: "bg-slate-500" },
+            ] as const).map((item) => {
+              const percent = statusSummary.total
+                ? Math.round((item.value / statusSummary.total) * 100)
+                : 0;
+              return (
+                <div key={item.label}>
+                  <div className="flex items-center justify-between text-xs text-slate-600">
+                    <span>{item.label}</span>
+                    <span>{item.value} kali</span>
+                  </div>
+                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className={`h-full ${item.color}`}
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
+          <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">Analisa</h3>
+          <p className="mt-4 text-sm text-slate-600">
+            Total presensi tercatat: <span className="font-semibold text-slate-900">{statusSummary.total}</span>.
+            Status yang paling sering muncul adalah <span className="font-semibold text-red-600">{statusSummary.most}</span>.
+          </p>
+          <p className="mt-3 text-xs text-slate-500">
+            Pantau tren absensi dan segera komunikasikan apabila terjadi lonjakan izin atau alpha.
+          </p>
+        </div>
+      </div>
+
       <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-white/90 shadow-lg shadow-red-100">
         <div className="border-b border-slate-200 px-6 py-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -242,7 +297,7 @@ export function PresensiPage({
               ) : submitState.success ? (
                 <span className="text-emerald-600">{submitState.success}</span>
               ) : (
-                "Data akan tersimpan ke spreadsheet."
+                "Data akan tersimpan ke basis data."
               )}
             </p>
             <button

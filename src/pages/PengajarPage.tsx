@@ -10,14 +10,18 @@ import { postAppScript } from "@/utils/appScript";
 type PengajarPageProps = {
   pengajarRows: RowRecord[];
   selectedStudent: RowRecord | null;
+  permintaanRows: RowRecord[];
 };
 
 const PAGE_SIZE = 12;
 
-export function PengajarPage({ pengajarRows, selectedStudent }: PengajarPageProps) {
+export function PengajarPage({ pengajarRows, selectedStudent, permintaanRows }: PengajarPageProps) {
   const [page, setPage] = useState(1);
   const [mapelFilter, setMapelFilter] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  const [contactRow, setContactRow] = useState<RowRecord | null>(null);
+  const [contactKeperluan, setContactKeperluan] = useState("");
   const [formState, setFormState] = useState({
     tanggal: "",
     mataPelajaran: "",
@@ -59,6 +63,16 @@ export function PengajarPage({ pengajarRows, selectedStudent }: PengajarPageProp
     setSubmitState({ loading: false, error: "", success: "" });
   };
 
+  const openContactModal = (row: RowRecord) => {
+    if (!selectedStudent) {
+      setFlashMessage("Data siswa belum tersedia.");
+      return;
+    }
+    setContactRow(row);
+    setContactKeperluan("");
+    setIsContactModalOpen(true);
+  };
+
   const normalizeKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "").trim();
 
   const getValueByKeys = (row: RowRecord | null, keys: string[]) => {
@@ -86,6 +100,56 @@ export function PengajarPage({ pengajarRows, selectedStudent }: PengajarPageProp
       .replace(/\s+/g, " ")
       .trim();
 
+  const buildWaMessage = (keperluan: string) => {
+    const namaSiswa = getRowValue(selectedStudent, "Nama");
+    const asalSekolah = getRowValue(selectedStudent, "Asal Sekolah");
+    const kelas =
+      getRowValue(selectedStudent, "Kelompok Kelas") ||
+      getRowValue(selectedStudent, "Kelas") ||
+      getRowValue(selectedStudent, "Kelompok");
+    const cabang = getRowValue(selectedStudent, "Cabang");
+    return `Halo Kak, perkenalkan saya:\nNama: ${namaSiswa || "-"}\nAsal Sekolah: ${asalSekolah || "-"}\nKelas: ${kelas || "-"}\nCabang: ${cabang || "-"}\n\nKeperluan saya: ${keperluan || "-"}.\n\nMohon responsnya ya kak, Terima kasih.`;
+  };
+
+  const resolvePengajarRow = (pengajarName: string, mapel: string) => {
+    const normalizedPengajar = normalizeText(pengajarName);
+    const normalizedMapel = normalizeText(mapel);
+
+    return (
+      pengajarRows.find((row) => {
+        const pengajarValue = getValueByKeys(row, ["Pengajar"]) || getRowValue(row, "Pengajar");
+        const mapelValue =
+          getValueByKeys(row, ["Mata Pelajaran", "Mapel"]) || getRowValue(row, "Mata Pelajaran");
+        return (
+          normalizeText(pengajarValue) === normalizedPengajar &&
+          (normalizeText(mapelValue) === normalizedMapel || !mapelValue)
+        );
+      }) ||
+      pengajarRows.find((row) => {
+        const pengajarValue = getValueByKeys(row, ["Pengajar"]) || getRowValue(row, "Pengajar");
+        return normalizeText(pengajarValue) === normalizedPengajar;
+      }) ||
+      null
+    );
+  };
+
+  const buildWaUrl = (row: RowRecord | null, keperluan: string) => {
+    const rawPhone = getValueByKeys(row ?? null, [
+      "No.Whatsapp",
+      "No. Whatsapp",
+      "No.whatsapp",
+      "No Whatsapp",
+      "Nowhatsapp",
+      "Whatsapp",
+      "WA",
+      "No WA",
+    ]);
+    const normalizedPhone = normalizePhone(rawPhone);
+    if (!normalizedPhone) return "";
+    const message = buildWaMessage(keperluan);
+    return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
+  };
+
   const handleSubmit = async () => {
     if (!selectedStudent) {
       setSubmitState({ loading: false, error: "Data siswa belum tersedia.", success: "" });
@@ -100,46 +164,8 @@ export function PengajarPage({ pengajarRows, selectedStudent }: PengajarPageProp
       return;
     }
 
-    const normalizedPengajar = normalizeText(formState.pengajar);
-    const normalizedMapel = normalizeText(formState.mataPelajaran);
-
-    const matchedRow =
-      pengajarRows.find((row) => {
-        const pengajarValue = getValueByKeys(row, ["Pengajar"]) || getRowValue(row, "Pengajar");
-        const mapelValue =
-          getValueByKeys(row, ["Mata Pelajaran", "Mapel"]) || getRowValue(row, "Mata Pelajaran");
-        return (
-          normalizeText(pengajarValue) === normalizedPengajar &&
-          (normalizeText(mapelValue) === normalizedMapel || !mapelValue)
-        );
-      }) ||
-      pengajarRows.find((row) => {
-        const pengajarValue = getValueByKeys(row, ["Pengajar"]) || getRowValue(row, "Pengajar");
-        return normalizeText(pengajarValue) === normalizedPengajar;
-      });
-
-    const rawPhone = getValueByKeys(matchedRow ?? null, [
-      "No.Whatsapp",
-      "No. Whatsapp",
-      "No.whatsapp",
-      "No Whatsapp",
-      "Nowhatsapp",
-      "Whatsapp",
-      "WA",
-      "No WA",
-    ]);
-    const normalizedPhone = normalizePhone(rawPhone);
-    const message = `Halo ${formState.pengajar}, saya ${getRowValue(
-      selectedStudent,
-      "Nama"
-    )} (NIS ${getRowValue(selectedStudent, "Nis")}). Saya ingin permintaan pelayanan untuk ${
-      formState.mataPelajaran
-    } pada tanggal ${formState.tanggal}. Keperluan: ${
-      formState.keperluan || "-"
-    }.`;
-    const waUrl = normalizedPhone
-      ? `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`
-      : "";
+    const matchedRow = resolvePengajarRow(formState.pengajar, formState.mataPelajaran);
+    const waUrl = buildWaUrl(matchedRow, formState.keperluan);
 
     try {
       setSubmitState({ loading: true, error: "", success: "" });
@@ -175,6 +201,23 @@ export function PengajarPage({ pengajarRows, selectedStudent }: PengajarPageProp
     }
   };
 
+  const handleContactSubmit = () => {
+    if (!contactRow) return;
+    if (!contactKeperluan.trim()) {
+      setFlashMessage("Silakan tulis keperluan sebelum menghubungi pengajar.");
+      return;
+    }
+    const waUrl = buildWaUrl(contactRow, contactKeperluan);
+    if (!waUrl) {
+      setFlashMessage("Nomor WhatsApp pengajar belum tersedia.");
+      return;
+    }
+    setIsContactModalOpen(false);
+    setContactKeperluan("");
+    setContactRow(null);
+    window.location.href = waUrl;
+  };
+
   if (pengajarRows.length === 0) {
     return <EmptyState message="Data pengajar belum tersedia pada basis data." />;
   }
@@ -186,6 +229,53 @@ export function PengajarPage({ pengajarRows, selectedStudent }: PengajarPageProp
           {flashMessage}
         </div>
       )}
+      <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-white/90 shadow-lg shadow-red-100">
+        <div className="border-b border-slate-200 px-6 py-4">
+          <h3 className="text-lg font-semibold text-slate-900">Riwayat Permintaan Pelayanan</h3>
+          <p className="mt-1 text-sm text-slate-500">Pantau status permintaan yang sudah diajukan.</p>
+        </div>
+        {permintaanRows.length === 0 ? (
+          <div className="px-6 py-10 text-center text-sm text-slate-500">
+            Belum ada permintaan pelayanan yang tercatat.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-100 text-slate-600">
+                <tr>
+                  {["Tanggal", "Mata Pelajaran", "Pengajar", "Keperluan", "Status"].map((header) => (
+                    <th key={header} className="px-6 py-3 text-left text-xs uppercase tracking-[0.3em]">
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {permintaanRows.map((row, index) => (
+                  <tr key={`${getRowValue(row, "Tanggal")}-${index}`} className="border-t border-slate-200">
+                    <td className="px-6 py-3 text-slate-900">
+                      {getRowValue(row, "Tanggal") || "-"}
+                    </td>
+                    <td className="px-6 py-3 text-slate-900">
+                      {getRowValue(row, "Mata Pelajaran") || "-"}
+                    </td>
+                    <td className="px-6 py-3 text-slate-700">
+                      {getRowValue(row, "Pengajar") || "-"}
+                    </td>
+                    <td className="px-6 py-3 text-slate-700">
+                      {getRowValue(row, "Keperluan") || "-"}
+                    </td>
+                    <td className="px-6 py-3 text-slate-700">
+                      {getRowValue(row, "Status") || "Menunggu"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -239,16 +329,45 @@ export function PengajarPage({ pengajarRows, selectedStudent }: PengajarPageProp
                     {getRowValue(row, "Mata Pelajaran") || "-"}
                   </td>
                   <td className="px-6 py-3 text-slate-500">
-                    {getValueByKeys(row, [
-                      "No.Whatsapp",
-                      "No. Whatsapp",
-                      "No.whatsapp",
-                      "No Whatsapp",
-                      "Nowhatsapp",
-                      "Whatsapp",
-                      "WA",
-                      "No WA",
-                    ]) || "-"}
+                    {(() => {
+                      const rawPhone = getValueByKeys(row, [
+                        "No.Whatsapp",
+                        "No. Whatsapp",
+                        "No.whatsapp",
+                        "No Whatsapp",
+                        "Nowhatsapp",
+                        "Whatsapp",
+                        "WA",
+                        "No WA",
+                      ]);
+                      const normalizedPhone = normalizePhone(rawPhone);
+                      const namaSiswa = selectedStudent ? getRowValue(selectedStudent, "Nama") : "";
+                      const asalSekolah = selectedStudent ? getRowValue(selectedStudent, "Asal Sekolah") : "";
+                      const kelas =
+                        selectedStudent?.["Kelompok Kelas"] ||
+                        selectedStudent?.["Kelas"] ||
+                        selectedStudent?.["Kelompok"] ||
+                        "";
+                      const cabang = selectedStudent ? getRowValue(selectedStudent, "Cabang") : "";
+                      const message = `Halo Kak, perkenalkan saya:\nNama: ${namaSiswa || "-"}\nAsal Sekolah: ${asalSekolah || "-"}\nKelas: ${kelas || "-"}\nCabang: ${cabang || "-"}\n\nKeperluan saya: Konsultasi PR.\n\nMohon responsnya ya kak, Terima kasih.`;
+                      const waLink = normalizedPhone
+                        ? `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`
+                        : "";
+                      return (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span>{rawPhone || "-"}</span>
+                          {waLink && (
+                            <button
+                              type="button"
+                              onClick={() => openContactModal(row)}
+                              className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600 transition hover:bg-emerald-100"
+                            >
+                              Hubungi
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
                 </tr>
               ))}
@@ -328,6 +447,41 @@ export function PengajarPage({ pengajarRows, selectedStudent }: PengajarPageProp
               placeholder="Contoh: butuh pendalaman materi tertentu"
               rows={4}
               className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+            />
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        title="Hubungi Pengajar"
+        description="Tuliskan keperluan sebelum membuka WhatsApp pengajar."
+        isOpen={isContactModalOpen}
+        onClose={() => {
+          setIsContactModalOpen(false);
+          setContactKeperluan("");
+          setContactRow(null);
+        }}
+        footer={
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-slate-500">Pesan akan langsung diarahkan ke WhatsApp.</p>
+            <button
+              onClick={handleContactSubmit}
+              className="rounded-2xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-emerald-200 transition hover:bg-emerald-500"
+            >
+              Kirim Pesan
+            </button>
+          </div>
+        }
+      >
+        <div className="grid gap-4">
+          <div>
+            <label className="text-xs uppercase tracking-[0.3em] text-slate-500">Keperluan</label>
+            <textarea
+              value={contactKeperluan}
+              onChange={(event) => setContactKeperluan(event.target.value)}
+              placeholder="Contoh: Konsultasi PR."
+              rows={4}
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
             />
           </div>
         </div>

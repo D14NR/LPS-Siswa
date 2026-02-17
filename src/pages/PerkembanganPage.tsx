@@ -25,6 +25,39 @@ export function PerkembanganPage({ selectedStudent, perkembanganRows, pengajarRo
   const [dateFilter, setDateFilter] = useState("");
   const [mapelFilter, setMapelFilter] = useState("");
 
+  const penguasaanSummary = useMemo(() => {
+    const summary: Record<string, number> = {};
+    perkembanganRows.forEach((row) => {
+      const value = getRowValue(row, "Penguasaan") || "Lainnya";
+      summary[value] = (summary[value] || 0) + 1;
+    });
+    const entries = Object.entries(summary).sort((a, b) => b[1] - a[1]);
+    const total = entries.reduce((acc, [, count]) => acc + count, 0);
+    return { entries, total, top: entries[0]?.[0] ?? "-" };
+  }, [perkembanganRows]);
+
+  const penjelasanSummary = useMemo(() => {
+    const summary: Record<string, number> = {};
+    perkembanganRows.forEach((row) => {
+      const value = getRowValue(row, "Penjelasan") || "Lainnya";
+      summary[value] = (summary[value] || 0) + 1;
+    });
+    const entries = Object.entries(summary).sort((a, b) => b[1] - a[1]);
+    const total = entries.reduce((acc, [, count]) => acc + count, 0);
+    return { entries, total, top: entries[0]?.[0] ?? "-" };
+  }, [perkembanganRows]);
+
+  const kondisiSummary = useMemo(() => {
+    const summary: Record<string, number> = {};
+    perkembanganRows.forEach((row) => {
+      const value = getRowValue(row, "Kondisi") || "Lainnya";
+      summary[value] = (summary[value] || 0) + 1;
+    });
+    const entries = Object.entries(summary).sort((a, b) => b[1] - a[1]);
+    const total = entries.reduce((acc, [, count]) => acc + count, 0);
+    return { entries, total, top: entries[0]?.[0] ?? "-" };
+  }, [perkembanganRows]);
+
   const mapelOptions = useMemo(() => uniqueValues(pengajarRows, "Mata Pelajaran"), [pengajarRows]);
 
   const filteredRows = useMemo(
@@ -60,6 +93,85 @@ export function PerkembanganPage({ selectedStudent, perkembanganRows, pengajarRo
 
   return (
     <section className="grid gap-6">
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
+          <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">Grafik Penguasaan Materi</h3>
+          <div className="mt-4 space-y-4">
+            {penguasaanSummary.entries.slice(0, 4).map(([label, count]) => {
+              const percent = penguasaanSummary.total
+                ? Math.round((count / penguasaanSummary.total) * 100)
+                : 0;
+              return (
+                <div key={label}>
+                  <div className="flex items-center justify-between text-xs text-slate-600">
+                    <span>{label}</span>
+                    <span>{count} catatan</span>
+                  </div>
+                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full bg-red-500" style={{ width: `${percent}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
+          <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">Grafik Penjelasan Materi</h3>
+          <div className="mt-4 space-y-4">
+            {penjelasanSummary.entries.slice(0, 4).map(([label, count]) => {
+              const percent = penjelasanSummary.total
+                ? Math.round((count / penjelasanSummary.total) * 100)
+                : 0;
+              return (
+                <div key={label}>
+                  <div className="flex items-center justify-between text-xs text-slate-600">
+                    <span>{label}</span>
+                    <span>{count} catatan</span>
+                  </div>
+                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full bg-amber-500" style={{ width: `${percent}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
+          <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">Grafik Kondisi Belajar</h3>
+          <div className="mt-4 space-y-4">
+            {kondisiSummary.entries.slice(0, 4).map(([label, count]) => {
+              const percent = kondisiSummary.total
+                ? Math.round((count / kondisiSummary.total) * 100)
+                : 0;
+              return (
+                <div key={label}>
+                  <div className="flex items-center justify-between text-xs text-slate-600">
+                    <span>{label}</span>
+                    <span>{count} catatan</span>
+                  </div>
+                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full bg-emerald-500" style={{ width: `${percent}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
+        <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">Analisa & Keterangan</h3>
+        <p className="mt-4 text-sm text-slate-600">
+          Total catatan perkembangan: <span className="font-semibold text-slate-900">{penguasaanSummary.total}</span>.
+          Penguasaan materi dominan: <span className="font-semibold text-red-600">{penguasaanSummary.top}</span>.
+          Penjelasan materi terbanyak: <span className="font-semibold text-amber-600">{penjelasanSummary.top}</span>.
+          Kondisi belajar paling sering: <span className="font-semibold text-emerald-600">{kondisiSummary.top}</span>.
+        </p>
+        <p className="mt-3 text-xs text-slate-500">
+          Catatan ini membantu memantau fokus, keaktifan, dan kualitas pemahaman siswa selama belajar.
+        </p>
+      </div>
+
       <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-white/90 shadow-lg shadow-red-100">
         <div className="border-b border-slate-200 px-6 py-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

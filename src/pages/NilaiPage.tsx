@@ -34,6 +34,51 @@ export function NilaiPage({ selectedStudent, datasets }: NilaiPageProps) {
     availableDatasets.find((dataset) => dataset.key === activeKey) ?? availableDatasets[0];
   const rows = activeDataset?.rows ?? [];
   const headers = activeDataset?.headers ?? [];
+  const orderedRows = useMemo(() => sortRowsByDateDesc(rows), [rows]);
+
+  const parseScore = (value: string) => {
+    if (!value) return NaN;
+    let cleaned = value.replace(/[^0-9.,-]/g, "");
+    if (cleaned.includes(",") && cleaned.includes(".")) {
+      if (cleaned.lastIndexOf(",") > cleaned.lastIndexOf(".")) {
+        cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+      } else {
+        cleaned = cleaned.replace(/,/g, "");
+      }
+    } else if (cleaned.includes(",")) {
+      cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+    } else {
+      cleaned = cleaned.replace(/,/g, "");
+    }
+    const numberValue = Number(cleaned);
+    return Number.isFinite(numberValue) ? numberValue : NaN;
+  };
+
+  const getScoreFromRow = (row: RowRecord) => {
+    const rerataValue = parseScore(getRowValue(row, "Rerata"));
+    if (Number.isFinite(rerataValue)) return rerataValue;
+    return NaN;
+  };
+
+  const nilaiSummary = useMemo(() => {
+    const numericValues: number[] = [];
+    orderedRows.forEach((row) => {
+      const score = getScoreFromRow(row);
+      if (Number.isFinite(score)) {
+        numericValues.push(score);
+      }
+    });
+    const total = numericValues.length;
+    const avg = total
+      ? Math.round(numericValues.reduce((acc, value) => acc + value, 0) / total)
+      : 0;
+    const max = total ? Math.max(...numericValues) : 0;
+    const min = total ? Math.min(...numericValues) : 0;
+    const latest = numericValues[0] ?? 0;
+    const previous = numericValues[1] ?? 0;
+    const delta = latest && previous ? latest - previous : 0;
+    return { total, avg, max, min, latest, previous, delta };
+  }, [orderedRows]);
   const displayHeaders = useMemo(
     () => headers.filter((header) => header && normalizeMatch(header) !== "timestamp"),
     [headers]
@@ -89,6 +134,60 @@ export function NilaiPage({ selectedStudent, datasets }: NilaiPageProps) {
 
   return (
     <section className="grid gap-6">
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
+          <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">Ringkasan Nilai</h3>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {[
+              { label: "Rata-rata Total", value: nilaiSummary.avg, color: "bg-red-500" },
+              { label: "Nilai Tertinggi", value: nilaiSummary.max, color: "bg-emerald-500" },
+              { label: "Nilai Terendah", value: nilaiSummary.min, color: "bg-amber-500" },
+              { label: "Jumlah Tes", value: nilaiSummary.total, color: "bg-slate-500" },
+            ].map((item) => (
+              <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{item.label}</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-900">{item.value}</p>
+                <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div className={`h-full ${item.color}`} style={{ width: "70%" }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
+          <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">Perbandingan Tes Terakhir</h3>
+          <div className="mt-4 space-y-3 text-sm text-slate-600">
+            <div className="flex items-center justify-between">
+              <span>Tes Terakhir</span>
+              <span className="font-semibold text-slate-900">{nilaiSummary.latest || "-"}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Tes Sebelumnya</span>
+              <span className="font-semibold text-slate-900">{nilaiSummary.previous || "-"}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Selisih</span>
+              <span className={`font-semibold ${nilaiSummary.delta >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                {nilaiSummary.delta >= 0 ? "+" : ""}{nilaiSummary.delta || 0}
+              </span>
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-slate-500">
+            Perbandingan dihitung dari dua data nilai terbaru pada sub menu aktif.
+          </p>
+        </div>
+        <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
+          <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">Analisa & Keterangan</h3>
+          <p className="mt-4 text-sm text-slate-600">
+            Rata-rata total nilai berada di <span className="font-semibold text-red-600">{nilaiSummary.avg}</span>.
+            Nilai tertinggi tercatat {nilaiSummary.max} dan terendah {nilaiSummary.min}.
+          </p>
+          <p className="mt-3 text-xs text-slate-500">
+            Pantau tren peningkatan dengan membandingkan tes terakhir terhadap tes sebelumnya.
+          </p>
+        </div>
+      </div>
+
       <div className="rounded-[32px] border border-slate-200 bg-white/90 p-4 shadow-lg shadow-red-100">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>

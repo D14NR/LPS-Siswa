@@ -58,6 +58,10 @@ const SHEETS = {
     id: "1PQNdVQUJa-YQaWv-KZdIC7WE3VVlRAxpX5XT79NMJos",
     sheet: "Wa_Pengajar",
   },
+  permintaan: {
+    id: "1PQNdVQUJa-YQaWv-KZdIC7WE3VVlRAxpX5XT79NMJos",
+    sheet: "Permintaan",
+  },
 };
 
 const NILAI_ID = "1yb_UoQKe3tgbbTmnfYUFQiNQLe9NGdWsE-fzVLGthmw";
@@ -281,6 +285,7 @@ export function App() {
   });
   const [pengajar, setPengajar] = useState<TableData>({ headers: [], data: [] });
   const [waPengajar, setWaPengajar] = useState<TableData>({ headers: [], data: [] });
+  const [permintaan, setPermintaan] = useState<TableData>({ headers: [], data: [] });
   const [nilaiTes, setNilaiTes] = useState<Record<string, TableData>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -309,6 +314,7 @@ export function App() {
           pelayananText,
           pengajarText,
           waPengajarText,
+          permintaanText,
           ...nilaiTexts
         ] = await Promise.all([
           fetchSheetText(SHEETS.biodata.id, SHEETS.biodata.sheet),
@@ -319,6 +325,7 @@ export function App() {
           fetchSheetText(SHEETS.pelayanan.id, SHEETS.pelayanan.sheet),
           fetchSheetText(SHEETS.pengajar.id, SHEETS.pengajar.sheet),
           fetchSheetText(SHEETS.waPengajar.id, SHEETS.waPengajar.sheet),
+          fetchSheetText(SHEETS.permintaan.id, SHEETS.permintaan.sheet),
           ...nilaiRequests,
         ]);
 
@@ -334,6 +341,7 @@ export function App() {
         setPelayanan(formatRows(parseCSV(pelayananText || "")));
         setPengajar(formatRows(parseCSV(pengajarText || "")));
         setWaPengajar(formatRows(parseCSV(waPengajarText || "")));
+        setPermintaan(formatRows(parseCSV(permintaanText || "")));
 
         const nilaiData: Record<string, TableData> = {};
         NILAI_SHEETS.forEach((item, index) => {
@@ -403,6 +411,11 @@ export function App() {
     if (!activeNis) return { headers: pelayanan.headers, data: [] };
     return filterRowsByNis(pelayanan, activeNis);
   }, [pelayanan, activeNis]);
+
+  const filteredPermintaan = useMemo(() => {
+    if (!activeNis) return { headers: permintaan.headers, data: [] };
+    return filterRowsByNis(permintaan, activeNis);
+  }, [permintaan, activeNis]);
 
   const filteredNilai = useMemo(() => {
     if (!activeNis) return {};
@@ -573,6 +586,11 @@ export function App() {
     [pelayanan, activeNis]
   );
 
+  const latestPermintaan = useMemo<RowRecord | null>(
+    () => (activeNis ? getLatestRow(permintaan, activeNis) : null),
+    [permintaan, activeNis]
+  );
+
   const latestNilai = useMemo<RowRecord | null>(() => {
     if (!activeNis) return null;
     let latestRow: RowRecord | null = null;
@@ -636,6 +654,7 @@ export function App() {
             latestPerkembangan={latestPerkembangan}
             latestNilai={latestNilai}
             latestPelayanan={latestPelayanan}
+            latestPermintaan={latestPermintaan}
           />
         );
       case "Jadwal Reguler":
@@ -715,6 +734,9 @@ export function App() {
           <PengajarPage
             pengajarRows={waPengajarRecords}
             selectedStudent={selectedStudent}
+            permintaanRows={sortRowsByDateDesc(
+              filteredPermintaan.data.map((row) => rowToRecord(filteredPermintaan.headers, row))
+            )}
           />
         );
       }

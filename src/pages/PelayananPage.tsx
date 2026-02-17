@@ -32,6 +32,16 @@ export function PelayananPage({ selectedStudent, pelayananRows, pengajarRows }: 
     durasi: "",
     pengajar: "",
   });
+  const layananSummary = useMemo(() => {
+    const summary: Record<string, number> = {};
+    pelayananRows.forEach((row) => {
+      const mapel = getRowValue(row, "Mata Pelajaran") || "Lainnya";
+      summary[mapel] = (summary[mapel] || 0) + 1;
+    });
+    const entries = Object.entries(summary).sort((a, b) => b[1] - a[1]);
+    const total = entries.reduce((acc, [, count]) => acc + count, 0);
+    return { entries, total, top: entries[0]?.[0] ?? "-" };
+  }, [pelayananRows]);
   const [submitState, setSubmitState] = useState({ loading: false, error: "", success: "" });
   const [flashMessage, setFlashMessage] = useState("");
   const [dateFilter, setDateFilter] = useState("");
@@ -135,6 +145,40 @@ export function PelayananPage({ selectedStudent, pelayananRows, pengajarRows }: 
         </div>
       </div>
 
+      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+        <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
+          <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">Grafik Pelayanan</h3>
+          <div className="mt-4 space-y-4">
+            {layananSummary.entries.slice(0, 4).map(([label, count]) => {
+              const percent = layananSummary.total
+                ? Math.round((count / layananSummary.total) * 100)
+                : 0;
+              return (
+                <div key={label}>
+                  <div className="flex items-center justify-between text-xs text-slate-600">
+                    <span>{label}</span>
+                    <span>{count} sesi</span>
+                  </div>
+                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full bg-red-500" style={{ width: `${percent}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
+          <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">Analisa</h3>
+          <p className="mt-4 text-sm text-slate-600">
+            Total sesi pelayanan: <span className="font-semibold text-slate-900">{layananSummary.total}</span>.
+            Mata pelajaran paling sering: <span className="font-semibold text-red-600">{layananSummary.top}</span>.
+          </p>
+          <p className="mt-3 text-xs text-slate-500">
+            Pertimbangkan menambah slot layanan untuk mapel yang paling banyak diminati.
+          </p>
+        </div>
+      </div>
+
       <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-white/90 shadow-lg shadow-red-100">
         <div className="border-b border-slate-200 px-6 py-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -224,7 +268,7 @@ export function PelayananPage({ selectedStudent, pelayananRows, pengajarRows }: 
               ) : submitState.success ? (
                 <span className="text-emerald-600">{submitState.success}</span>
               ) : (
-                "Data akan tersimpan ke spreadsheet."
+                "Data akan tersimpan ke basis data."
               )}
             </p>
             <button
