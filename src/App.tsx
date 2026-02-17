@@ -6,6 +6,7 @@ import { PerkembanganPage } from "@/pages/PerkembanganPage";
 import { NilaiPage } from "@/pages/NilaiPage";
 import { PelayananPage } from "@/pages/PelayananPage";
 import { PengajarPage } from "@/pages/PengajarPage";
+import { BankSoalPage } from "@/pages/BankSoalPage";
 import type { DashboardCards, ScheduleColumn } from "@/components/dataDashboard";
 import {
   parseScheduleValue,
@@ -21,6 +22,7 @@ const MENU_ITEMS = [
   "Riwayat Presensi",
   "Riwayat Perkembangan Belajar",
   "Riwayat Nilai Tes",
+  "Bank Soal",
   "Riwayat Pelayanan/Tambahan",
   "No. Whatsapp Pengajar",
 ];
@@ -729,6 +731,9 @@ export function App() {
         });
         return <NilaiPage selectedStudent={selectedStudent} datasets={datasets} />;
       }
+      case "Bank Soal": {
+        return <BankSoalPage />;
+      }
       case "No. Whatsapp Pengajar": {
         return (
           <PengajarPage
@@ -889,7 +894,7 @@ export function App() {
               </div>
               <nav className="mt-4 space-y-2">
                 {MENU_ITEMS.map((item) => {
-                  const icon = item === "Dashboard Siswa" ? "🏠" : item === "Jadwal Reguler" ? "📅" : item === "Jadwal Tambahan" ? "🗓️" : item === "Riwayat Presensi" ? "📝" : item === "Riwayat Perkembangan Belajar" ? "📈" : item === "Riwayat Nilai Tes" ? "🏆" : item === "Riwayat Pelayanan/Tambahan" ? "🎯" : "📞";
+                  const icon = item === "Dashboard Siswa" ? "🏠" : item === "Jadwal Reguler" ? "📅" : item === "Jadwal Tambahan" ? "🗓️" : item === "Riwayat Presensi" ? "📝" : item === "Riwayat Perkembangan Belajar" ? "📈" : item === "Riwayat Nilai Tes" ? "🏆" : item === "Bank Soal" ? "📚" : item === "Riwayat Pelayanan/Tambahan" ? "🎯" : "📞";
                   return (
                     <button
                       key={item}
