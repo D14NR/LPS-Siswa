@@ -8,6 +8,7 @@ import { NilaiPage } from "@/pages/NilaiPage";
 import { PelayananPage } from "@/pages/PelayananPage";
 import { PengajarPage } from "@/pages/PengajarPage";
 import { BankSoalPage } from "@/pages/BankSoalPage";
+import { Modal } from "@/components/Modal";
 import type { DashboardCards, ScheduleColumn } from "@/components/dataDashboard";
 import {
   parseScheduleValue,
@@ -251,6 +252,7 @@ export function App() {
     typeof window === "undefined" ? null : localStorage.getItem("activeNis")
   );
   const [refreshToken, setRefreshToken] = useState(0);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -353,6 +355,8 @@ export function App() {
       { label: "Email", value: findValue("Email") },
     ];
   }, [biodata.headers, studentRow]);
+
+
 
   const filteredPresensi = useMemo(() => {
     if (!activeNis) return { headers: presensi.headers, data: [] };
@@ -626,7 +630,6 @@ export function App() {
         return (
           <DashboardPage
             selectedStudent={selectedStudent}
-            biodata={studentProfile}
             todaySchedule={todaySchedule}
             latestPresensi={latestPresensi}
             latestPerkembangan={latestPerkembangan}
@@ -817,17 +820,20 @@ export function App() {
             >
               Muat Ulang
             </button>
-            <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-500 shadow-sm">
+            <button
+              onClick={() => setIsProfileOpen(true)}
+              className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-500 shadow-sm transition hover:border-red-200"
+            >
               <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-600">
-                LS
+                {selectedStudent?.Nama?.slice(0, 1) || "S"}
               </span>
-              <div>
+              <div className="text-left">
                 <p className="text-xs uppercase tracking-widest text-slate-400">
-                  Siswa Aktif
+                  Profil Siswa
                 </p>
                 <p className="font-semibold text-slate-700">{selectedStudent?.Nama || activeNis}</p>
               </div>
-            </div>
+            </button>
             <button
               onClick={() => {
                 setActiveNis(null);
@@ -936,6 +942,25 @@ export function App() {
           </main>
         </div>
       </div>
+
+      <Modal
+        title="Profil Siswa"
+        description="Informasi lengkap biodata siswa."
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          {studentProfile.map((item) => (
+            <div
+              key={item.label}
+              className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-red-50 p-4"
+            >
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{item.label}</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">{item.value || "-"}</p>
+            </div>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 }

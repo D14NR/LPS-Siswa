@@ -22,7 +22,6 @@ const renderApprovalTime = (row: RowRecord | null) => {
 
 type DashboardPageProps = {
   selectedStudent: RowRecord | null;
-  biodata: { label: string; value: string }[];
   todaySchedule: DashboardCards["todaySchedule"];
   latestPresensi: RowRecord | null;
   latestPerkembangan: RowRecord | null;
@@ -33,7 +32,6 @@ type DashboardPageProps = {
 
 export function DashboardPage({
   selectedStudent,
-  biodata,
   todaySchedule,
   latestPresensi,
   latestPerkembangan,
@@ -47,12 +45,12 @@ export function DashboardPage({
 
   return (
     <div className="grid gap-6">
-      <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
-        <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">
-          Permintaan Pelayanan Terakhir
-        </h3>
-        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          {latestPermintaan ? (
+      {latestPermintaan && (
+        <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
+          <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">
+            Permintaan Pelayanan Terakhir
+          </h3>
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Tanggal Permintaan</p>
@@ -97,30 +95,9 @@ export function DashboardPage({
                 </p>
               </div>
             </div>
-          ) : (
-            <p className="text-sm text-slate-500">Belum ada data permintaan pelayanan.</p>
-          )}
+          </div>
         </div>
-      </div>
-
-      <div className="hidden rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100 lg:block">
-        <h2 className="text-lg font-semibold text-slate-900">Profil Siswa</h2>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {biodata.map((item) => (
-            <div
-              key={item.label}
-              className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-red-50 p-4"
-            >
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-                {item.label}
-              </p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">
-                {item.value || "-"}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
