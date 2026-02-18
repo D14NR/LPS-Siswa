@@ -4,7 +4,7 @@ import { Modal } from "@/components/Modal";
 import { Pagination } from "@/components/Pagination";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import type { RowRecord } from "@/utils/dataHelpers";
-import { getRowValue, matchesTextFilter, uniqueValues } from "@/utils/dataHelpers";
+import { formatDateValue, getRowValue, matchesTextFilter, uniqueValues } from "@/utils/dataHelpers";
 import { postAppScript } from "@/utils/appScript";
 
 type PengajarPageProps = {
@@ -243,7 +243,15 @@ export function PengajarPage({ pengajarRows, selectedStudent, permintaanRows }: 
             <table className="min-w-full text-sm">
               <thead className="bg-slate-100 text-slate-600">
                 <tr>
-                  {["Tanggal", "Mata Pelajaran", "Pengajar", "Keperluan", "Status"].map((header) => (
+                  {[
+                    "Tanggal",
+                    "Mata Pelajaran",
+                    "Pengajar",
+                    "Keperluan",
+                    "Status",
+                    "Tanggal Disetujui",
+                    "Jam Disetujui",
+                  ].map((header) => (
                     <th key={header} className="px-6 py-3 text-left text-xs uppercase tracking-[0.3em]">
                       {header}
                     </th>
@@ -254,7 +262,7 @@ export function PengajarPage({ pengajarRows, selectedStudent, permintaanRows }: 
                 {permintaanRows.map((row, index) => (
                   <tr key={`${getRowValue(row, "Tanggal")}-${index}`} className="border-t border-slate-200">
                     <td className="px-6 py-3 text-slate-900">
-                      {getRowValue(row, "Tanggal") || "-"}
+                      {formatDateValue(getRowValue(row, "Tanggal"))}
                     </td>
                     <td className="px-6 py-3 text-slate-900">
                       {getRowValue(row, "Mata Pelajaran") || "-"}
@@ -267,6 +275,15 @@ export function PengajarPage({ pengajarRows, selectedStudent, permintaanRows }: 
                     </td>
                     <td className="px-6 py-3 text-slate-700">
                       {getRowValue(row, "Status") || "Menunggu"}
+                    </td>
+                    <td className="px-6 py-3 text-slate-700">
+                      {formatDateValue(
+                        getRowValue(row, "Tanggal disetujui") ||
+                          getRowValue(row, "Tanggal Disetujui")
+                      )}
+                    </td>
+                    <td className="px-6 py-3 text-slate-700">
+                      {getRowValue(row, "Jam disetujui") || getRowValue(row, "Jam Disetujui") || "-"}
                     </td>
                   </tr>
                 ))}

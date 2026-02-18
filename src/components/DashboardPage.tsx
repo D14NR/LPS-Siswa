@@ -8,6 +8,18 @@ const renderRowValue = (row: RowRecord | null, key: string) =>
 const renderDateValue = (row: RowRecord | null) =>
   row ? formatDateValue(getRowValue(row, "Tanggal") || getRowValue(row, "Timestamp")) : "";
 
+const renderApprovalDate = (row: RowRecord | null) => {
+  if (!row) return "";
+  return formatDateValue(
+    getRowValue(row, "Tanggal disetujui") || getRowValue(row, "Tanggal Disetujui")
+  );
+};
+
+const renderApprovalTime = (row: RowRecord | null) => {
+  if (!row) return "";
+  return getRowValue(row, "Jam disetujui") || getRowValue(row, "Jam Disetujui") || "";
+};
+
 type DashboardPageProps = {
   selectedStudent: RowRecord | null;
   biodata: { label: string; value: string }[];
@@ -35,6 +47,62 @@ export function DashboardPage({
 
   return (
     <div className="grid gap-6">
+      <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
+        <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">
+          Permintaan Pelayanan Terakhir
+        </h3>
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          {latestPermintaan ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Tanggal Permintaan</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {renderDateValue(latestPermintaan)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Mata Pelajaran</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {renderRowValue(latestPermintaan, "Mata Pelajaran") || "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Pengajar</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {renderRowValue(latestPermintaan, "Pengajar") || "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Status</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {renderRowValue(latestPermintaan, "Status") || "Menunggu"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Tanggal Disetujui</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {renderApprovalDate(latestPermintaan) || "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Jam Disetujui</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {renderApprovalTime(latestPermintaan) || "-"}
+                </p>
+              </div>
+              <div className="sm:col-span-2">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Tempat/Cabang</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {renderRowValue(latestPermintaan, "Cabang") || "-"}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">Belum ada data permintaan pelayanan.</p>
+          )}
+        </div>
+      </div>
+
       <div className="hidden rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100 lg:block">
         <h2 className="text-lg font-semibold text-slate-900">Profil Siswa</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -143,32 +211,6 @@ export function DashboardPage({
               </div>
             ) : (
               <p className="text-sm text-slate-500">Belum ada data nilai.</p>
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
-          <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">
-            Permintaan Pelayanan Terakhir
-          </h3>
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            {latestPermintaan ? (
-              <div className="space-y-2">
-                <p className="text-sm text-slate-500">
-                  {renderDateValue(latestPermintaan)}
-                </p>
-                <p className="text-base font-semibold text-slate-900">
-                  {renderRowValue(latestPermintaan, "Mata Pelajaran") || "-"}
-                </p>
-                <p className="text-sm text-slate-500">
-                  Pengajar: {renderRowValue(latestPermintaan, "Pengajar") || "-"}
-                </p>
-                <p className="text-sm text-slate-500">
-                  Status: {renderRowValue(latestPermintaan, "Status") || "Menunggu"}
-                </p>
-              </div>
-            ) : (
-              <p className="text-sm text-slate-500">Belum ada data permintaan pelayanan.</p>
             )}
           </div>
         </div>

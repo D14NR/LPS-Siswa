@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import logo from "@/assets/logo.svg";
 import { DashboardPage } from "@/components/DashboardPage";
 import { SchedulePage } from "@/components/SchedulePage";
 import { PresensiPage } from "@/pages/PresensiPage";
@@ -761,8 +762,8 @@ export function App() {
         <div className="mx-auto flex min-h-screen max-w-4xl items-center justify-center px-6">
           <div className="w-full max-w-xl rounded-[32px] border border-slate-200 bg-white/95 p-8 shadow-2xl shadow-red-100">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-600 text-xl text-white shadow-lg shadow-red-200">
-                LS
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-lg shadow-red-200">
+                <img src={logo} alt="Logo LPS" className="h-10 w-10" />
               </div>
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
@@ -783,7 +784,7 @@ export function App() {
               <input
                 value={nisInput}
                 onChange={(event) => setNisInput(event.target.value)}
-                placeholder="Contoh: 31-443-001-5"
+                placeholder="Contoh: 12345"
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
               />
               <button
@@ -812,8 +813,8 @@ export function App() {
       <header className="border-b border-slate-200 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-600 text-base font-semibold text-white shadow-lg shadow-red-200">
-              LS
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-lg shadow-red-200">
+              <img src={logo} alt="Logo LPS" className="h-9 w-9" />
             </div>
             <div>
               <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
