@@ -783,7 +783,7 @@ export function App() {
               <input
                 value={nisInput}
                 onChange={(event) => setNisInput(event.target.value)}
-                placeholder="Contoh: 12345"
+                placeholder="Contoh: 31-443-001-5"
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
               />
               <button
