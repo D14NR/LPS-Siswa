@@ -199,53 +199,7 @@ const getLatestRowWithDate = (table: TableData, nis: string) => {
   return { row, date: parseDate(dateValue) };
 };
 
-const TableView = ({
-  headers,
-  data,
-  stickyFirst = false,
-}: {
-  headers: string[];
-  data: string[][];
-  stickyFirst?: boolean;
-}) => (
-  <div className="overflow-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-    <table className="min-w-full border-collapse text-left text-sm">
-      <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-widest text-slate-500">
-        <tr>
-          {headers.map((header, index) => (
-            <th
-              key={header + index}
-              className={`px-4 py-3 font-semibold ${
-                stickyFirst && index === 0 ? "sticky left-0 bg-slate-50" : ""
-              }`}
-            >
-              {header || "-"}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {data.map((row, rowIndex) => (
-          <tr
-            key={`row-${rowIndex}`}
-            className={rowIndex % 2 === 0 ? "bg-white" : "bg-slate-50/60"}
-          >
-            {headers.map((_, cellIndex) => (
-              <td
-                key={`cell-${rowIndex}-${cellIndex}`}
-                className={`px-4 py-3 text-slate-700 ${
-                  stickyFirst && cellIndex === 0 ? "sticky left-0 bg-inherit" : ""
-                }`}
-              >
-                {row[cellIndex] || "-"}
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
+
 
 const PlaceholderSection = ({
   title,
@@ -430,7 +384,7 @@ export function App() {
   }, [nilaiTes, activeNis]);
 
   const studentSchedule = useMemo(() => {
-    if (!studentRow) return { reguler: null, tambahan: null };
+    if (!studentRow) return { reguler: null, tambahan: [], tambahanPrimary: null };
     const kelasIndex = getHeaderIndex(biodata.headers, "Kelompok Kelas");
     const asalSekolahIndex = getHeaderIndex(biodata.headers, "Asal Sekolah");
     const kelasRaw = kelasIndex >= 0 ? studentRow[kelasIndex] : "";
@@ -459,17 +413,24 @@ export function App() {
         )
       : null;
 
-    const tambahanRow = asalSekolah
-      ? selectRowWithSchedule(jadwalTambahan, (row, cabangIdx, kelasIdx) => {
-          const cabangValue = cabangIdx >= 0 ? row[cabangIdx] : "";
-          const kelasValue = kelasIdx >= 0 ? row[kelasIdx] : "";
-          return cabangValue === asalSekolah || kelasValue === asalSekolah;
-        })
+    const tambahanRows = asalSekolah
+      ? (() => {
+          const asalIndex = getHeaderIndex(jadwalTambahan.headers, "Asal Sekolah");
+          return jadwalTambahan.data.filter((row) => {
+            const asalValue = asalIndex >= 0 ? row[asalIndex] : "";
+            return asalValue === asalSekolah;
+          });
+        })()
+      : [];
+
+    const tambahanPrimary = tambahanRows.length
+      ? tambahanRows.find((row) => row.some((cell, idx) => idx > 2 && cell.trim() !== "")) || tambahanRows[0]
       : null;
 
     return {
       reguler: regulerRow,
-      tambahan: tambahanRow,
+      tambahan: tambahanRows,
+      tambahanPrimary,
     };
   }, [studentRow, biodata.headers, jadwalReguler, jadwalTambahan]);
 
@@ -477,6 +438,20 @@ export function App() {
     if (!studentSchedule.reguler) return null;
     return rowToRecord(jadwalReguler.headers, studentSchedule.reguler);
   }, [jadwalReguler.headers, studentSchedule.reguler]);
+
+  const tambahanScheduleRecord = useMemo<RowRecord | null>(() => {
+    if (!studentSchedule.tambahan.length || !jadwalTambahan.headers.length) return null;
+    const metaKeys = ["Cabang", "Kelompok Kelas", "kelompok Kelas", "Asal Sekolah"];
+    const merged = jadwalTambahan.headers.reduce<RowRecord>((acc, header, index) => {
+      const values = studentSchedule.tambahan
+        .map((row) => row[index] ?? "")
+        .map((value) => value.trim())
+        .filter(Boolean);
+      acc[header] = metaKeys.includes(header) ? values[0] ?? "" : values.join("\n");
+      return acc;
+    }, {});
+    return merged;
+  }, [jadwalTambahan.headers, studentSchedule.tambahan]);
 
   const scheduleColumns = useMemo<ScheduleColumn[]>(() => {
     if (!jadwalReguler.headers.length) return [];
@@ -486,7 +461,7 @@ export function App() {
   }, [jadwalReguler.headers]);
 
   const scheduleValues = useMemo(() => {
-    if (!studentSchedule.reguler && !studentSchedule.tambahan) {
+    if (!studentSchedule.reguler && !studentSchedule.tambahanPrimary) {
       return { reguler: "-", tambahan: "-", summary: "-" };
     }
     const todayKey = formatDateHeader(new Date());
@@ -498,8 +473,8 @@ export function App() {
         ? studentSchedule.reguler[regulerIndex] || "-"
         : "-";
     const tambahanValue =
-      tambahanIndex >= 0 && studentSchedule.tambahan
-        ? studentSchedule.tambahan[tambahanIndex] || "-"
+      tambahanIndex >= 0 && studentSchedule.tambahanPrimary
+        ? studentSchedule.tambahanPrimary[tambahanIndex] || "-"
         : "-";
 
     return {
@@ -674,11 +649,15 @@ export function App() {
           />
         );
       case "Jadwal Tambahan":
-        return jadwalTambahan.headers.length > 0 && studentSchedule.tambahan ? (
-          <TableView
-            headers={jadwalTambahan.headers}
-            data={[studentSchedule.tambahan]}
-            stickyFirst
+        return jadwalTambahan.headers.length > 0 && tambahanScheduleRecord ? (
+          <SchedulePage
+            selectedSchedule={tambahanScheduleRecord}
+            scheduleColumns={jadwalTambahan.headers
+              .filter((header) => !["Cabang", "Kelompok Kelas", "kelompok Kelas", "Asal Sekolah"].includes(header))
+              .map((header) => ({ dateLabel: header, mapel: header }))}
+            scheduleClassKey="Asal Sekolah"
+            emptyMessage="Jadwal tambahan belum tersedia untuk asal sekolah siswa."
+            variant="tambahan"
           />
         ) : (
           <PlaceholderSection
@@ -784,7 +763,7 @@ export function App() {
               <input
                 value={nisInput}
                 onChange={(event) => setNisInput(event.target.value)}
-                placeholder="Contoh: 12345"
+                placeholder="Contoh: 31-443-001-5"
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
               />
               <button
@@ -873,7 +852,7 @@ export function App() {
           <aside
             className={`space-y-4 transition-all ${
               isSidebarOpen ? "block" : "hidden"
-            } lg:block ${isSidebarCollapsed ? "lg:w-[92px]" : "lg:w-auto"} lg:h-full lg:overflow-y-auto`}
+            } lg:block ${isSidebarCollapsed ? "lg:w-[92px]" : "lg:w-auto"} h-full overflow-y-auto lg:h-full lg:overflow-y-auto`}
           >
             <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm">
               <div className="flex items-center justify-between">
@@ -930,6 +909,13 @@ export function App() {
                 secara berkala untuk kebutuhan rapor.
               </p>
             </div>
+            <p
+              className={`px-2 text-[10px] uppercase tracking-[0.3em] text-slate-300 ${
+                isSidebarCollapsed ? "hidden lg:block" : ""
+              }`}
+            >
+              © 2026 by D14nr
+            </p>
           </aside>
 
           <main className="flex h-full flex-col overflow-hidden">
