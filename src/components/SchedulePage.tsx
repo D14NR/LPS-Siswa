@@ -13,11 +13,59 @@ type SchedulePageProps = {
   selectedSchedule: RowRecord | null;
   scheduleColumns: ScheduleColumn[];
   scheduleClassKey: string;
+  emptyMessage?: string;
+  variant?: "reguler" | "tambahan";
 };
 
-export function SchedulePage({ selectedSchedule, scheduleColumns, scheduleClassKey }: SchedulePageProps) {
+const parseScheduleLine = (value: string) => {
+  if (!value) return { subject: "", time: "" };
+  if (value.includes("/")) {
+    return parseScheduleValue(value);
+  }
+  const match = value.match(/^(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})\s+(.*)$/);
+  if (match) {
+    return { time: match[1].trim(), subject: match[2].trim() };
+  }
+  return { subject: value.trim(), time: "" };
+};
+
+const parseScheduleSessions = (value: string) => {
+  if (!value) return [] as { subject: string; time: string }[];
+  const normalized = value.replace(/\r/g, "").replace(/\\n/g, "\n");
+  let parts = normalized
+    .split(/\n|;|\|/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (parts.length <= 1) {
+    const timePattern = /(\d{1,2}\.\d{2}\s*-\s*\d{1,2}\.\d{2})/g;
+    const segments = normalized
+      .split(timePattern)
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+
+    if (segments.length >= 3) {
+      parts = [];
+      for (let i = 1; i < segments.length; i += 2) {
+        const time = segments[i];
+        const subject = segments[i + 1] || "";
+        parts.push(`${time} ${subject}`.trim());
+      }
+    }
+  }
+
+  return parts.map(parseScheduleLine).filter((item) => item.subject || item.time);
+};
+
+export function SchedulePage({
+  selectedSchedule,
+  scheduleColumns,
+  scheduleClassKey,
+  emptyMessage = "Jadwal reguler belum tersedia untuk cabang dan kelompok kelas siswa.",
+  variant = "reguler",
+}: SchedulePageProps) {
   if (!selectedSchedule) {
-    return <EmptyState message="Jadwal reguler belum tersedia untuk cabang dan kelompok kelas siswa." />;
+    return <EmptyState message={emptyMessage} />;
   }
 
   const today = new Date();
@@ -41,6 +89,14 @@ export function SchedulePage({ selectedSchedule, scheduleColumns, scheduleClassK
 
   const displayColumns = [...fromToday, ...beforeToday];
 
+  const tambahanInfo = {
+    kelas:
+      getRowValue(selectedSchedule, "Kelompok Kelas") ||
+      getRowValue(selectedSchedule, "kelompok Kelas") ||
+      "-",
+    asalSekolah: getRowValue(selectedSchedule, "Asal Sekolah") || "-",
+  };
+
   return (
     <section className="grid gap-6">
       <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
@@ -50,17 +106,60 @@ export function SchedulePage({ selectedSchedule, scheduleColumns, scheduleClassK
             <h2 className="text-lg font-semibold text-slate-900">{getRowValue(selectedSchedule, "Cabang")}</h2>
           </div>
           <div className="text-left sm:text-right">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Kelompok Kelas</p>
-            <h3 className="text-lg font-semibold text-red-600">{getRowValue(selectedSchedule, scheduleClassKey)}</h3>
-            <p className="text-xs text-slate-500">Menyesuaikan salah satu kelompok kelas siswa.</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
+              {variant === "tambahan" ? "Asal Sekolah" : "Kelompok Kelas"}
+            </p>
+            <h3 className="text-lg font-semibold text-red-600">
+              {getRowValue(selectedSchedule, scheduleClassKey)}
+            </h3>
+            <p className="text-xs text-slate-500">
+              {variant === "tambahan"
+                ? "Menyesuaikan asal sekolah siswa."
+                : "Menyesuaikan salah satu kelompok kelas siswa."}
+            </p>
           </div>
         </div>
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          className={`mt-6 grid gap-4 ${
+            variant === "tambahan" ? "lg:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3"
+          }`}
+        >
           {displayColumns.map((schedule) => {
             const mapelValue = schedule.mapel ? getRowValue(selectedSchedule, schedule.mapel) : "";
             const jamValue = schedule.jam ? getRowValue(selectedSchedule, schedule.jam) : "";
             const combined = mapelValue || jamValue;
             if (!combined) return null;
+
+            if (variant === "tambahan") {
+              const sessions = parseScheduleSessions(combined);
+
+              return (
+                <div
+                  key={schedule.dateLabel}
+                  className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-red-50 p-5"
+                >
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                    {formatDateLabel(schedule.dateLabel)}
+                  </p>
+                  <p className="mt-3 text-sm font-semibold text-slate-900">
+                    {tambahanInfo.kelas} , {tambahanInfo.asalSekolah}
+                  </p>
+                  <div className="mt-4 space-y-3">
+                    {sessions.map((session, idx) => (
+                      <div key={`${schedule.dateLabel}-${idx}`} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        <p className="text-xs text-slate-500">
+                          {session.time || "Jam belum ditentukan"}
+                        </p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {expandMapel(session.subject) || "-"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+
             const parsed = schedule.mapel && schedule.jam
               ? { subject: expandMapel(mapelValue), time: jamValue }
               : parseScheduleValue(combined);
