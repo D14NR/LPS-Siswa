@@ -661,6 +661,7 @@ export function App() {
             scheduleClassKey="Asal Sekolah"
             emptyMessage="Jadwal tambahan belum tersedia untuk asal sekolah siswa."
             variant="tambahan"
+            tambahanRows={studentSchedule.tambahan.map((row) => rowToRecord(jadwalTambahan.headers, row))}
           />
         ) : (
           <PlaceholderSection

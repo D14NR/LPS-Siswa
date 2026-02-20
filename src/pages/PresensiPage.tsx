@@ -162,7 +162,7 @@ export function PresensiPage({
             onClick={openModal}
             className="rounded-2xl bg-red-600 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-red-200 transition hover:bg-red-500"
           >
-            Presensi saya
+            Tambah Presensi
           </button>
         </div>
       </div>
