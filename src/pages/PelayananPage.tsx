@@ -130,7 +130,7 @@ export function PelayananPage({ selectedStudent, pelayananRows, pengajarRows }: 
       <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Input Pelayanan/Jam Tambahan</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Pelayanan/Jam Tambahan</h2>
             <p className="mt-1 text-sm text-slate-500">Form disajikan dalam modal untuk input layanan tambahan.</p>
           </div>
           <button
@@ -140,7 +140,7 @@ export function PelayananPage({ selectedStudent, pelayananRows, pengajarRows }: 
             }}
             className="rounded-2xl bg-red-600 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-red-200 transition hover:bg-red-500"
           >
-            Tambah Pelayanan
+            Presensi Pelayanan/Jam tambahan
           </button>
         </div>
       </div>
