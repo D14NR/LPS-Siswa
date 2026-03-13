@@ -68,14 +68,12 @@ const SHEETS = {
   },
 };
 
-const NILAI_ID = "1yb_UoQKe3tgbbTmnfYUFQiNQLe9NGdWsE-fzVLGthmw";
 const NILAI_SHEETS = [
-  { label: "Nilai UTBK", sheet: "Nilai UTBK" },
-  { label: "Nilai TKA SMA", sheet: "Nilai TKA SMA" },
-  { label: "Nilai TKA SMP", sheet: "Nilai TKA SMP" },
-  { label: "Nilai TKA SD", sheet: "Nilai TKA SD" },
-  { label: "Nilai Tes STANDAR", sheet: "Nilai TES STANDAR" },
-  { label: "Nilai EVALUASI", sheet: "Nilai EVALUASI" },
+  { label: "Nilai UTBK",       id: "1DKI84nBDAc8d3W7UQRP6f713AxqAJv1YVeZOhyso1qg", sheet: "Nilai UTBK" },
+  { label: "Nilai TKA SMA",    id: "1Wbx_ZuKCOeH1Ed8yxIn-jDkwmP7ZS4p1Sn7kOhWaDVM", sheet: "Nilai TKA SMA" },
+  { label: "Nilai TKA SMP",    id: "1yb_UoQKe3tgbbTmnfYUFQiNQLe9NGdWsE-fzVLGthmw", sheet: "Nilai TKA SMP" },
+  { label: "Nilai TKA SD",     id: "1KWZfvlxVkXJGs4yCwOIIHFU92z11AMF7YWIrCMbkGjQ", sheet: "Nilai TKA SD" },
+  { label: "Nilai EVALUASI",   id: "1gCIG5FDpcfKZsbkwyC3eAXOnTl_dEJB88ZyMiue5ytM", sheet: "Nilai EVALUASI" },
 ];
 
 const createCsvUrl = (id: string, sheet: string) =>
@@ -261,7 +259,7 @@ export function App() {
         setError(null);
 
         const nilaiRequests = NILAI_SHEETS.map((item) =>
-          fetchSheetText(NILAI_ID, item.sheet)
+          fetchSheetText(item.id, item.sheet)
         );
 
         const [
@@ -411,10 +409,16 @@ export function App() {
       return matches.find(hasSchedule) || matches[0];
     };
 
+    const studentCabang = getHeaderIndex(biodata.headers, "Cabang") >= 0
+      ? studentRow[getHeaderIndex(biodata.headers, "Cabang")]
+      : "";
+
     const regulerRow = kelasList.length
-      ? selectRowWithSchedule(jadwalReguler, (row, _cabangIdx, kelasIdx) =>
-          kelasIdx >= 0 ? kelasList.includes(row[kelasIdx]) : false
-        )
+      ? selectRowWithSchedule(jadwalReguler, (row, cabangIdx, kelasIdx) => {
+          const kelasMatch = kelasIdx >= 0 ? kelasList.includes(row[kelasIdx]) : false;
+          const cabangMatch = !studentCabang || cabangIdx === -1 || row[cabangIdx] === studentCabang;
+          return kelasMatch && cabangMatch;
+        })
       : null;
 
     const tambahanRows = asalSekolah
@@ -442,6 +446,29 @@ export function App() {
     if (!studentSchedule.reguler) return null;
     return rowToRecord(jadwalReguler.headers, studentSchedule.reguler);
   }, [jadwalReguler.headers, studentSchedule.reguler]);
+
+  // All matching reguler rows (same Kelompok Kelas AND same Cabang) — may have multiple rows per date
+  const regulerAllRows = useMemo<RowRecord[]>(() => {
+    if (!studentRow) return [];
+    const kelasIndex = getHeaderIndex(biodata.headers, "Kelompok Kelas");
+    const cabangIndex = getHeaderIndex(biodata.headers, "Cabang");
+    const kelasRaw = kelasIndex >= 0 ? studentRow[kelasIndex] : "";
+    const studentCabang = cabangIndex >= 0 ? studentRow[cabangIndex] : "";
+    const kelasList = kelasRaw.split(/,|;/).map((k) => k.trim()).filter(Boolean);
+    const kelasIdx = getHeaderIndex(jadwalReguler.headers, "Kelompok Kelas");
+    const cabangIdx = getHeaderIndex(jadwalReguler.headers, "Cabang");
+    if (kelasIdx === -1 || !kelasList.length) return [];
+    return jadwalReguler.data
+      .filter((row) => {
+        const rowKelas = kelasIdx >= 0 ? row[kelasIdx] : "";
+        const rowCabang = cabangIdx >= 0 ? row[cabangIdx] : "";
+        const kelasMatch = kelasList.includes(rowKelas);
+        // Only filter by cabang if student has a cabang value and schedule has cabang column
+        const cabangMatch = !studentCabang || cabangIdx === -1 || rowCabang === studentCabang;
+        return kelasMatch && cabangMatch;
+      })
+      .map((row) => rowToRecord(jadwalReguler.headers, row));
+  }, [studentRow, biodata.headers, jadwalReguler]);
 
   const tambahanScheduleRecord = useMemo<RowRecord | null>(() => {
     if (!studentSchedule.tambahan.length || !jadwalTambahan.headers.length) return null;
@@ -636,6 +663,8 @@ export function App() {
             latestNilai={latestNilai}
             latestPelayanan={latestPelayanan}
             latestPermintaan={latestPermintaan}
+            pengajarRows={pengajarRecords}
+            onNavigate={setActiveMenu}
           />
         );
       case "Jadwal Reguler":
@@ -644,6 +673,7 @@ export function App() {
             selectedSchedule={regulerScheduleRecord}
             scheduleColumns={scheduleColumns}
             scheduleClassKey="Kelompok Kelas"
+            regulerAllRows={regulerAllRows}
           />
         ) : (
           <PlaceholderSection

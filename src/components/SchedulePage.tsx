@@ -16,6 +16,7 @@ type SchedulePageProps = {
   emptyMessage?: string;
   variant?: "reguler" | "tambahan";
   tambahanRows?: RowRecord[];
+  regulerAllRows?: RowRecord[];
 };
 
 const parseScheduleLine = (value: string) => {
@@ -65,6 +66,7 @@ export function SchedulePage({
   emptyMessage = "Jadwal reguler belum tersedia untuk cabang dan kelompok kelas siswa.",
   variant = "reguler",
   tambahanRows,
+  regulerAllRows,
 }: SchedulePageProps) {
   if (!selectedSchedule) {
     return <EmptyState message={emptyMessage} />;
@@ -212,6 +214,27 @@ export function SchedulePage({
     );
   }
 
+  // Build a merged date→sessions map from all reguler rows for the same class
+  type RegulerSession = { subject: string; time: string };
+  const regulerDateMap: Record<string, RegulerSession[]> = {};
+  const allRegulerRows = regulerAllRows && regulerAllRows.length > 0
+    ? regulerAllRows
+    : [selectedSchedule];
+
+  allRegulerRows.forEach((row: RowRecord) => {
+    scheduleColumns.forEach((col) => {
+      const cellValue = (row[col.dateLabel] || "").trim();
+      if (!cellValue) return;
+      const parsed = parseScheduleValue(cellValue);
+      if (!parsed.subject && !parsed.time) return;
+      if (!regulerDateMap[col.dateLabel]) regulerDateMap[col.dateLabel] = [];
+      regulerDateMap[col.dateLabel].push({
+        subject: expandMapel(parsed.subject),
+        time: parsed.time,
+      });
+    });
+  });
+
   return (
     <section className="grid gap-6">
       <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
@@ -229,16 +252,11 @@ export function SchedulePage({
           </div>
         </div>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {displayColumns.map((schedule) => {
-            const mapelValue = schedule.mapel ? getRowValue(selectedSchedule, schedule.mapel) : "";
-            const jamValue = schedule.jam ? getRowValue(selectedSchedule, schedule.jam) : "";
-            const combined = mapelValue || jamValue;
-            if (!combined) return null;
+          {displayColumns.map((col) => {
+            const sessions = regulerDateMap[col.dateLabel];
+            if (!sessions || sessions.length === 0) return null;
 
-            const parsed = schedule.mapel && schedule.jam
-              ? { subject: expandMapel(mapelValue), time: jamValue }
-              : parseScheduleValue(combined);
-            const scheduleDate = getDateFromLabel(schedule.dateLabel);
+            const scheduleDate = getDateFromLabel(col.dateLabel);
             const statusLabel = scheduleDate
               ? scheduleDate.getTime() === startOfToday.getTime()
                 ? "Hari ini"
@@ -256,12 +274,12 @@ export function SchedulePage({
 
             return (
               <div
-                key={schedule.dateLabel}
+                key={col.dateLabel}
                 className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-red-50 p-4"
               >
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                    {formatDateLabel(schedule.dateLabel)}
+                    {formatDateLabel(col.dateLabel)}
                   </p>
                   {statusLabel && (
                     <span className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase ${statusClass}`}>
@@ -269,8 +287,14 @@ export function SchedulePage({
                     </span>
                   )}
                 </div>
-                <p className="text-base font-semibold text-slate-900">{parsed.subject || "-"}</p>
-                <p className="text-sm text-slate-500">{parsed.time || "Jam belum ditentukan"}</p>
+                <div className="mt-1 space-y-2">
+                  {sessions.map((session, idx) => (
+                    <div key={idx} className="rounded-xl border border-slate-100 bg-white px-3 py-2">
+                      <p className="text-sm font-semibold text-slate-900">{session.subject || "-"}</p>
+                      <p className="text-xs text-slate-500">{session.time || "Jam belum ditentukan"}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             );
           })}

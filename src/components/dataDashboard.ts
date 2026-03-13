@@ -4,6 +4,7 @@ export type DashboardCards = {
     label: string;
     subject: string;
     time: string;
+    dateValue?: string;
   } | null;
 };
 
