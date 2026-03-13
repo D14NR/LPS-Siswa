@@ -491,46 +491,63 @@ export function App() {
       .map((header) => ({ dateLabel: header, mapel: header }));
   }, [jadwalReguler.headers]);
 
-  const scheduleValues = useMemo(() => {
-    if (!studentSchedule.reguler && !studentSchedule.tambahanPrimary) {
-      return { reguler: "-", tambahan: "-", summary: "-" };
-    }
+
+
+  // Compute ALL today's sessions from every matching reguler row
+  const todaySchedules = useMemo(() => {
     const todayKey = formatDateHeader(new Date());
     const regulerIndex = getHeaderIndex(jadwalReguler.headers, todayKey);
-    const tambahanIndex = getHeaderIndex(jadwalTambahan.headers, todayKey);
+    const sessions: import("@/components/dataDashboard").TodaySession[] = [];
 
-    const regulerValue =
-      regulerIndex >= 0 && studentSchedule.reguler
-        ? studentSchedule.reguler[regulerIndex] || "-"
-        : "-";
-    const tambahanValue =
-      tambahanIndex >= 0 && studentSchedule.tambahanPrimary
-        ? studentSchedule.tambahanPrimary[tambahanIndex] || "-"
-        : "-";
+    if (regulerIndex >= 0 && regulerAllRows.length > 0) {
+      for (const row of regulerAllRows) {
+        const rawVal = jadwalReguler.headers[regulerIndex]
+          ? (row as Record<string, string>)[jadwalReguler.headers[regulerIndex]] || ""
+          : "";
+        if (rawVal && rawVal !== "-") {
+          const parsed = parseScheduleValue(rawVal);
+          if (parsed && parsed.subject) {
+            sessions.push({
+              label: "Jadwal Reguler",
+              subject: parsed.subject,
+              time: parsed.time,
+              dateValue: new Date().toISOString().slice(0, 10),
+            });
+          }
+        }
+      }
+    }
 
-    return {
-      reguler: regulerValue,
-      tambahan: tambahanValue,
-      summary:
-        regulerValue !== "-"
-          ? regulerValue
-          : tambahanValue !== "-"
-          ? tambahanValue
-          : "-",
-    };
-  }, [studentSchedule, jadwalReguler.headers, jadwalTambahan.headers]);
+    // If no reguler sessions, try tambahan
+    if (sessions.length === 0) {
+      const tambahanIndex = getHeaderIndex(jadwalTambahan.headers, todayKey);
+      if (tambahanIndex >= 0 && studentSchedule.tambahanPrimary) {
+        const rawVal = studentSchedule.tambahanPrimary[tambahanIndex] || "";
+        if (rawVal && rawVal !== "-") {
+          // split by newline in case merged rows
+          const parts = rawVal.split("\n").filter(Boolean);
+          for (const part of parts) {
+            const parsed = parseScheduleValue(part);
+            if (parsed && parsed.subject) {
+              sessions.push({
+                label: "Jadwal Tambahan",
+                subject: parsed.subject,
+                time: parsed.time,
+                dateValue: new Date().toISOString().slice(0, 10),
+              });
+            }
+          }
+        }
+      }
+    }
 
+    return sessions;
+  }, [jadwalReguler.headers, jadwalTambahan.headers, regulerAllRows, studentSchedule.tambahanPrimary]);
+
+  // Keep single todaySchedule for backward compat (presensi modal etc.)
   const todaySchedule = useMemo<DashboardCards["todaySchedule"]>(() => {
-    if (scheduleValues.summary === "-") return null;
-    const isReguler = scheduleValues.reguler !== "-";
-    const parsed = parseScheduleValue(scheduleValues.summary);
-    if (!parsed) return null;
-    return {
-      label: isReguler ? "Jadwal Reguler" : "Jadwal Tambahan",
-      subject: parsed.subject,
-      time: parsed.time,
-    };
-  }, [scheduleValues]);
+    return todaySchedules.length > 0 ? todaySchedules[0] : null;
+  }, [todaySchedules]);
 
   const todayScheduleWithDate = useMemo(() => {
     if (!todaySchedule) return null;
@@ -658,6 +675,7 @@ export function App() {
           <DashboardPage
             selectedStudent={selectedStudent}
             todaySchedule={todaySchedule}
+            todaySchedules={todaySchedules}
             latestPresensi={latestPresensi}
             latestPerkembangan={latestPerkembangan}
             latestNilai={latestNilai}
@@ -771,49 +789,105 @@ export function App() {
 
   if (!activeNis) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-red-50 text-slate-900">
-        <div className="mx-auto flex min-h-screen max-w-4xl items-center justify-center px-6">
-          <div className="w-full max-w-xl rounded-[32px] border border-slate-200 bg-white/95 p-8 shadow-2xl shadow-red-100">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-lg shadow-red-200">
+      <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-red-700 via-red-600 to-red-800 text-slate-900">
+        {/* Decorative background */}
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-white/5" />
+          <div className="absolute -bottom-40 -right-40 h-[500px] w-[500px] rounded-full bg-white/5" />
+          <div className="absolute left-1/2 top-1/4 h-64 w-64 -translate-x-1/2 rounded-full bg-white/5" />
+        </div>
+
+        <div className="relative mx-auto flex min-h-screen max-w-6xl items-center justify-center px-6 py-12">
+          <div className="grid w-full gap-8 lg:grid-cols-2 lg:items-center">
+            {/* Left branding */}
+            <div className="text-center lg:text-left">
+              <div className="inline-flex items-center gap-3 rounded-2xl bg-white/15 px-5 py-3 backdrop-blur-sm">
                 <img src={logo} alt="Logo LPS" className="h-10 w-10" />
+                <div className="text-left">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-red-100">LPS Semarang-Kendal</p>
+                  <p className="text-sm font-bold text-white">Lembaga Pendidikan Siswa</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                  LPS Semarang-Kendal
+              <h1 className="mt-8 text-4xl font-black leading-tight text-white lg:text-5xl">
+                Portal<br />Rapor Siswa<br />
+                <span className="text-red-200">Digital</span>
+              </h1>
+              <p className="mt-4 max-w-md text-base text-red-100 lg:text-lg">
+                Akses jadwal, presensi, perkembangan belajar, dan riwayat nilai secara real-time.
+              </p>
+              <div className="mt-8 hidden flex-wrap gap-3 lg:flex">
+                {["Jadwal Belajar", "Riwayat Presensi", "Nilai Tes", "Perkembangan Siswa"].map((f) => (
+                  <span key={f} className="rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">
+                    ✓ {f}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Right login card */}
+            <div className="w-full rounded-3xl border border-white/20 bg-white/95 p-8 shadow-2xl shadow-black/20 backdrop-blur-sm">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 shadow-md shadow-red-200">
+                  <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-slate-400">Portal Siswa</p>
+                  <p className="text-base font-bold text-slate-900">Masuk dengan NIS</p>
+                </div>
+              </div>
+
+              <p className="mb-5 text-sm text-slate-500">
+                Masukkan Nomor Induk Siswa (NIS) untuk mengakses dashboard rapor dan histori belajarmu.
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-slate-500">
+                    Nomor Induk Siswa (NIS)
+                  </label>
+                  <input
+                    value={nisInput}
+                    onChange={(event) => setNisInput(event.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        const trimmed = nisInput.trim();
+                        if (trimmed) { setActiveNis(trimmed); setIsSidebarOpen(false); }
+                      }
+                    }}
+                    placeholder="Contoh: 31-443-001-5"
+                    className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-medium text-slate-700 shadow-sm transition focus:border-red-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-red-100"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    const trimmed = nisInput.trim();
+                    if (!trimmed) return;
+                    setActiveNis(trimmed);
+                    setIsSidebarOpen(false);
+                  }}
+                  className="group w-full rounded-2xl bg-gradient-to-r from-red-600 to-red-700 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-red-200 transition hover:from-red-700 hover:to-red-800 hover:shadow-red-300 active:scale-[0.99]"
+                >
+                  <span className="flex items-center justify-center gap-2">
+                    Masuk Dashboard
+                    <svg className="h-4 w-4 transition group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </span>
+                </button>
+              </div>
+
+              <div className="mt-5 flex items-start gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4">
+                <svg className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-xs text-slate-500">
+                  Pastikan NIS sudah terdaftar pada basis data biodata siswa. Hubungi admin LPS jika mengalami masalah.
                 </p>
-                <h1 className="mt-1 text-2xl font-semibold text-slate-900">
-                  Portal Rapor Siswa
-                </h1>
               </div>
-            </div>
-            <h2 className="mt-6 text-2xl font-semibold text-slate-900">
-              Masuk dengan NIS
-            </h2>
-            <p className="mt-2 text-sm text-slate-500">
-              Masukkan NIS siswa untuk mengakses dashboard rapor dan histori belajar.
-            </p>
-            <div className="mt-6 space-y-4">
-              <input
-                value={nisInput}
-                onChange={(event) => setNisInput(event.target.value)}
-                placeholder="Contoh: 31-443-001-5"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
-              />
-              <button
-                onClick={() => {
-                  const trimmed = nisInput.trim();
-                  if (!trimmed) return;
-                  setActiveNis(trimmed);
-                  setIsSidebarOpen(false);
-                }}
-                className="w-full rounded-2xl bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-red-200 transition hover:bg-red-700"
-              >
-                Masuk Dashboard
-              </button>
-            </div>
-            <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
-              Pastikan NIS sudah terdaftar pada basis data biodata siswa.
+
+              <p className="mt-5 text-center text-[10px] uppercase tracking-widest text-slate-300">© 2026 by D14nr</p>
             </div>
           </div>
         </div>
@@ -821,50 +895,83 @@ export function App() {
     );
   }
 
+  const menuIcons: Record<string, string> = {
+    "Dashboard Siswa": "🏠",
+    "Jadwal Reguler": "📅",
+    "Jadwal Tambahan": "🗓️",
+    "Riwayat Presensi": "📝",
+    "Riwayat Perkembangan Belajar": "📈",
+    "Riwayat Nilai Tes": "🏆",
+    "Bank Soal": "📚",
+    "Riwayat Pelayanan/Tambahan": "🎯",
+    "No. Whatsapp Pengajar": "📞",
+  };
+
+  const studentInitial = (selectedStudent as Record<string, string> | null)?.["Nama"]?.slice(0, 1)?.toUpperCase() || "S";
+  const studentName = (selectedStudent as Record<string, string> | null)?.["Nama"] || activeNis || "Siswa";
+
   return (
-    <div className="flex h-screen flex-col bg-gradient-to-br from-slate-100 via-white to-red-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-5">
+    <div className="flex h-screen flex-col bg-slate-100 text-slate-900">
+      {/* ── Header ── */}
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white shadow-sm">
+        <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          {/* Logo + Brand */}
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-lg shadow-red-200">
-              <img src={logo} alt="Logo LPS" className="h-9 w-9" />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 shadow-md shadow-red-200">
+              <img src={logo} alt="Logo LPS" className="h-7 w-7" />
             </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                LPS Semarang-Kendal
-              </p>
-              <h1 className="text-2xl font-semibold text-slate-900">
-                Rapor Siswa Digital
-              </h1>
+            <div className="hidden sm:block">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">LPS Semarang-Kendal</p>
+              <p className="text-sm font-bold text-slate-900 leading-tight">Rapor Siswa Digital</p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+
+          {/* Center: Active menu breadcrumb */}
+          <div className="hidden md:flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5">
+            <span className="text-base">{menuIcons[activeMenu] || "📋"}</span>
+            <span className="text-xs font-semibold text-slate-600">{activeMenu}</span>
+          </div>
+
+          {/* Right actions */}
+          <div className="flex items-center gap-2">
+            {/* Mobile menu toggle */}
             <button
               onClick={() => setIsSidebarOpen((prev) => !prev)}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-slate-500 shadow-sm transition hover:border-red-200 hover:text-red-600 lg:hidden"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-red-200 hover:text-red-600 lg:hidden"
             >
-              {isSidebarOpen ? "Tutup Menu" : "Buka Menu"}
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {isSidebarOpen
+                  ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                }
+              </svg>
             </button>
+
+            {/* Reload */}
             <button
               onClick={() => setRefreshToken((prev) => prev + 1)}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-slate-500 shadow-sm transition hover:border-red-200 hover:text-red-600"
+              title="Muat Ulang Data"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-red-200 hover:text-red-600"
             >
-              Muat Ulang
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
             </button>
+
+            {/* Profile button */}
             <button
               onClick={() => setIsProfileOpen(true)}
-              className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-500 shadow-sm transition hover:border-red-200"
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 shadow-sm transition hover:border-red-200"
             >
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-600">
-                {selectedStudent?.Nama?.slice(0, 1) || "S"}
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-700 text-xs font-bold text-white shadow-sm">
+                {studentInitial}
               </span>
-              <div className="text-left">
-                <p className="text-xs uppercase tracking-widest text-slate-400">
-                  Profil Siswa
-                </p>
-                <p className="font-semibold text-slate-700">{selectedStudent?.Nama || activeNis}</p>
-              </div>
+              <span className="hidden max-w-[120px] truncate text-xs font-semibold text-slate-700 sm:block">
+                {studentName}
+              </span>
             </button>
+
+            {/* Logout */}
             <button
               onClick={() => {
                 setActiveNis(null);
@@ -872,106 +979,117 @@ export function App() {
                 setActiveMenu(MENU_ITEMS[0]);
                 setIsSidebarOpen(false);
               }}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-slate-500 shadow-sm transition hover:border-red-200 hover:text-red-600"
+              title="Logout"
+              className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500 shadow-sm transition hover:border-red-200 hover:text-red-600"
             >
-              Logout
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </div>
       </header>
 
-      <div className="flex-1 overflow-hidden">
-        <div
-          className={`mx-auto grid h-full max-w-7xl gap-6 px-6 py-8 ${
-            isSidebarCollapsed ? "lg:grid-cols-[92px_1fr]" : "lg:grid-cols-[260px_1fr]"
-          }`}
+      {/* ── Body ── */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar */}
+        <aside
+          className={`${
+            isSidebarOpen ? "flex" : "hidden"
+          } lg:flex flex-col border-r border-slate-200 bg-white shadow-sm transition-all ${
+            isSidebarCollapsed ? "lg:w-[68px]" : "lg:w-[240px]"
+          } w-full absolute inset-y-0 top-[57px] z-30 lg:relative lg:top-0 lg:inset-y-auto overflow-y-auto`}
         >
-          <aside
-            className={`space-y-4 transition-all ${
-              isSidebarOpen ? "block" : "hidden"
-            } lg:block ${isSidebarCollapsed ? "lg:w-[92px]" : "lg:w-auto"} h-full overflow-y-auto lg:h-full lg:overflow-y-auto`}
-          >
-            <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <p
-                  className={`text-xs font-semibold uppercase tracking-[0.3em] text-slate-400 ${
-                    isSidebarCollapsed ? "sr-only" : ""}
-                  `}
-                >
-                  Menu Rapor
-                </p>
+          {/* Collapse toggle */}
+          <div className="flex items-center justify-between border-b border-slate-100 px-3 py-3">
+            {!isSidebarCollapsed && (
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Menu Rapor</p>
+            )}
+            <button
+              onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+              className="hidden lg:flex ml-auto h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-400 transition hover:border-red-200 hover:text-red-600"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {isSidebarCollapsed
+                  ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                }
+              </svg>
+            </button>
+          </div>
+
+          {/* Nav items */}
+          <nav className="flex-1 space-y-0.5 p-2">
+            {MENU_ITEMS.map((item) => {
+              const icon = menuIcons[item] || "📋";
+              const isActive = activeMenu === item;
+              return (
                 <button
-                  onClick={() => setIsSidebarCollapsed((prev) => !prev)}
-                  className={`hidden rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-widest text-slate-500 shadow-sm transition hover:border-red-200 hover:text-red-600 lg:inline-flex ${
-                    isSidebarCollapsed ? "w-full" : ""
+                  key={item}
+                  onClick={() => {
+                    setActiveMenu(item);
+                    setIsSidebarOpen(false);
+                  }}
+                  title={item}
+                  className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all ${
+                    isActive
+                      ? "bg-red-600 text-white shadow-md shadow-red-200"
+                      : "text-slate-600 hover:bg-red-50 hover:text-red-700"
                   }`}
                 >
-                  {isSidebarCollapsed ? "Buka Menu" : "Perkecil"}
+                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-base transition ${
+                    isActive ? "bg-white/20" : "bg-slate-100 group-hover:bg-red-100"
+                  }`}>
+                    {icon}
+                  </span>
+                  <span className={`truncate leading-tight ${isSidebarCollapsed ? "lg:hidden" : ""}`}>
+                    {item}
+                  </span>
+                  {isActive && !isSidebarCollapsed && (
+                    <svg className="ml-auto h-3.5 w-3.5 shrink-0 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  )}
                 </button>
-              </div>
-              <nav className="mt-4 space-y-2">
-                {MENU_ITEMS.map((item) => {
-                  const icon = item === "Dashboard Siswa" ? "🏠" : item === "Jadwal Reguler" ? "📅" : item === "Jadwal Tambahan" ? "🗓️" : item === "Riwayat Presensi" ? "📝" : item === "Riwayat Perkembangan Belajar" ? "📈" : item === "Riwayat Nilai Tes" ? "🏆" : item === "Bank Soal" ? "📚" : item === "Riwayat Pelayanan/Tambahan" ? "🎯" : "📞";
-                  return (
-                    <button
-                      key={item}
-                      onClick={() => {
-                        setActiveMenu(item);
-                        setIsSidebarOpen(false);
-                      }}
-                      className={`flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
-                        activeMenu === item
-                          ? "bg-red-600 text-white shadow-lg shadow-red-200"
-                          : "bg-slate-50 text-slate-600 hover:bg-slate-100"
-                      }`}
-                    >
-                      <span className="flex items-center gap-3">
-                        <span className="text-lg">{icon}</span>
-                        <span className={isSidebarCollapsed ? "sr-only" : ""}>{item}</span>
-                      </span>
-                      <span className={`text-xs opacity-70 ${isSidebarCollapsed ? "sr-only" : ""}`}>›</span>
-                    </button>
-                  );
-                })}
-              </nav>
-            </div>
-            <div
-              className={`rounded-3xl border border-slate-200 bg-white/90 p-5 text-sm text-slate-600 shadow-sm ${
-                isSidebarCollapsed ? "hidden lg:block" : ""
-              }`}
-            >
-              <p className="font-semibold text-slate-700">Sumber Data</p>
-              <p className="mt-2 text-xs text-slate-500">
-                Sistem menarik data langsung dari basis data terpusat yang diperbarui
-                secara berkala untuk kebutuhan rapor.
-              </p>
-            </div>
-            <p
-              className={`px-2 text-[10px] uppercase tracking-[0.3em] text-slate-300 ${
-                isSidebarCollapsed ? "hidden lg:block" : ""
-              }`}
-            >
-              © 2026 by D14nr
-            </p>
-          </aside>
+              );
+            })}
+          </nav>
 
-          <main className="flex h-full flex-col overflow-hidden">
-            <div className="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                {activeMenu}
-              </p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-900">
-                {activeMenu}
-              </h2>
-              <p className="mt-2 text-sm text-slate-500">
-                Pantau informasi siswa dan histori belajar secara terstruktur.
-              </p>
+          {/* Sidebar footer */}
+          {!isSidebarCollapsed && (
+            <div className="border-t border-slate-100 p-3">
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Sumber Data</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                  Data diambil langsung dari basis data terpusat LPS yang diperbarui secara berkala.
+                </p>
+              </div>
+              <p className="mt-3 text-center text-[9px] uppercase tracking-widest text-slate-300">© 2026 by D14nr</p>
             </div>
-            <div className="mt-6 flex-1 overflow-y-auto pr-1">
-              {renderContent()}
+          )}
+        </aside>
+
+        {/* Main content */}
+        <main className="flex flex-1 flex-col overflow-hidden">
+          {/* Page header strip */}
+          <div className="border-b border-slate-200 bg-white px-6 py-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50 text-xl">
+                {menuIcons[activeMenu] || "📋"}
+              </span>
+              <div>
+                <h2 className="text-base font-bold text-slate-900">{activeMenu}</h2>
+                <p className="text-xs text-slate-400">Pantau informasi siswa dan histori belajar secara terstruktur.</p>
+              </div>
             </div>
-          </main>
-        </div>
+          </div>
+
+          {/* Scrollable content */}
+          <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+            {renderContent()}
+          </div>
+        </main>
       </div>
 
       <Modal
@@ -980,14 +1098,14 @@ export function App() {
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
       >
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           {studentProfile.map((item) => (
             <div
               key={item.label}
-              className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-red-50 p-4"
+              className="rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-red-50 p-4"
             >
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{item.label}</p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">{item.value || "-"}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{item.label}</p>
+              <p className="mt-1.5 text-sm font-semibold text-slate-900">{item.value || "-"}</p>
             </div>
           ))}
         </div>
