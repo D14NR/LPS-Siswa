@@ -424,9 +424,15 @@ export function App() {
     const tambahanRows = asalSekolah
       ? (() => {
           const asalIndex = getHeaderIndex(jadwalTambahan.headers, "Asal Sekolah");
+          const cabangIndex = getHeaderIndex(jadwalTambahan.headers, "Cabang");
+          const normalize = (value: string) => value.trim().toLowerCase();
           return jadwalTambahan.data.filter((row) => {
             const asalValue = asalIndex >= 0 ? row[asalIndex] : "";
-            return asalValue === asalSekolah;
+            const cabangValue = cabangIndex >= 0 ? row[cabangIndex] : "";
+            const asalMatch = normalize(asalValue) === normalize(asalSekolah);
+            const cabangMatch =
+              !studentCabang || cabangIndex === -1 || normalize(cabangValue) === normalize(studentCabang);
+            return asalMatch && cabangMatch;
           });
         })()
       : [];
@@ -805,7 +811,7 @@ export function App() {
                 <img src={logo} alt="Logo LPS" className="h-10 w-10" />
                 <div className="text-left">
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-red-100">LPS Semarang-Kendal</p>
-                  <p className="text-sm font-bold text-white">Laporan Perkembangan Siswa</p>
+                  <p className="text-sm font-bold text-white">Lembaga Pendidikan Siswa</p>
                 </div>
               </div>
               <h1 className="mt-8 text-4xl font-black leading-tight text-white lg:text-5xl">
