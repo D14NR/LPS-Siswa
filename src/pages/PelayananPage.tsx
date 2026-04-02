@@ -5,6 +5,7 @@ import { Pagination } from "@/components/Pagination";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import type { RowRecord } from "@/utils/dataHelpers";
 import {
+  formatDateForStorage,
   formatDateValue,
   getRowValue,
   matchesDateFilter,
@@ -96,7 +97,7 @@ export function PelayananPage({ selectedStudent, pelayananRows, pengajarRows }: 
       await postAppScript("pelayanan", {
         nis: getRowValue(selectedStudent, "Nis"),
         nama: getRowValue(selectedStudent, "Nama"),
-        tanggal: formState.tanggal,
+        tanggal: formatDateForStorage(formState.tanggal),
         mataPelajaran: formState.mataPelajaran,
         materi: formState.materi,
         durasi: formState.durasi,

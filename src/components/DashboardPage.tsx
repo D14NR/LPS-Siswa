@@ -4,7 +4,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { Modal } from "@/components/Modal";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import type { RowRecord } from "@/utils/dataHelpers";
-import { formatDateValue, getRowValue, uniqueValues } from "@/utils/dataHelpers";
+import { formatDateForStorage, formatDateValue, getRowValue, uniqueValues } from "@/utils/dataHelpers";
 import { postAppScript } from "@/utils/appScript";
 
 const rv = (row: RowRecord | null, key: string) => (row ? getRowValue(row, key) || "" : "");
@@ -87,7 +87,7 @@ export function DashboardPage({
       await postAppScript("presensi", {
         nis: getRowValue(selectedStudent, "Nis"),
         nama: getRowValue(selectedStudent, "Nama"),
-        tanggal: resolvedTanggal,
+        tanggal: formatDateForStorage(resolvedTanggal),
         kelas: getRowValue(selectedStudent, "Kelompok Kelas") || getRowValue(selectedStudent, "Kelompok") || getRowValue(selectedStudent, "Kelas"),
         mataPelajaran: resolvedMapel,
         status: presensiStatus,
@@ -111,7 +111,7 @@ export function DashboardPage({
       await postAppScript("pelayanan", {
         nis: getRowValue(selectedStudent, "Nis"),
         nama: getRowValue(selectedStudent, "Nama"),
-        tanggal: pelayananForm.tanggal,
+        tanggal: formatDateForStorage(pelayananForm.tanggal),
         mataPelajaran: pelayananForm.mataPelajaran,
         materi: pelayananForm.materi,
         durasi: pelayananForm.durasi,

@@ -4,7 +4,13 @@ import { Modal } from "@/components/Modal";
 import { Pagination } from "@/components/Pagination";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import type { RowRecord } from "@/utils/dataHelpers";
-import { formatDateValue, getRowValue, matchesTextFilter, uniqueValues } from "@/utils/dataHelpers";
+import {
+  formatDateForStorage,
+  formatDateValue,
+  getRowValue,
+  matchesTextFilter,
+  uniqueValues,
+} from "@/utils/dataHelpers";
 import { postAppScript } from "@/utils/appScript";
 
 type PengajarPageProps = {
@@ -173,7 +179,7 @@ export function PengajarPage({ pengajarRows, selectedStudent, permintaanRows }: 
         nis: getRowValue(selectedStudent, "Nis"),
         nama: getRowValue(selectedStudent, "Nama"),
         cabang: getRowValue(selectedStudent, "Cabang"),
-        tanggal: formState.tanggal,
+        tanggal: formatDateForStorage(formState.tanggal),
         mataPelajaran: formState.mataPelajaran,
         pengajar: formState.pengajar,
         keperluan: formState.keperluan,

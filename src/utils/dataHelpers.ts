@@ -1,5 +1,20 @@
 export type RowRecord = Record<string, string>;
 
+const MONTH_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
 export const getRowValue = (row: RowRecord | null, key: string) => {
   if (!row) return "";
   return row[key] ?? "";
@@ -41,15 +56,18 @@ export const uniqueValues = (rows: RowRecord[], key: string) => {
 
 export const formatDateValue = (value: string) => {
   if (!value) return "-";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-  return parsed.toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  const parsed = getDateFromLabel(value) ?? new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const month = MONTH_SHORT[parsed.getMonth()];
+  const year = parsed.getFullYear();
+  return `${day} ${month} ${year}`;
+};
+
+export const formatDateForStorage = (value: string) => {
+  if (!value) return "";
+  const formatted = formatDateValue(value);
+  return formatted === "-" ? "" : formatted;
 };
 
 const monthMap: Record<string, number> = {
@@ -84,11 +102,10 @@ export const getDateFromLabel = (label: string) => {
 export const formatDateLabel = (label: string) => {
   const date = getDateFromLabel(label);
   if (!date) return label;
-  return date.toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = MONTH_SHORT[date.getMonth()];
+  const year = date.getFullYear();
+  return `${day} ${month} ${year}`;
 };
 
 const mapelDictionary: Record<string, string> = {
