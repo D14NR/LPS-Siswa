@@ -1,18 +1,18 @@
 export type RowRecord = Record<string, string>;
 
-const MONTH_SHORT = [
+const MONTH_SHORT_ID = [
   "Jan",
   "Feb",
   "Mar",
   "Apr",
-  "May",
+  "Mei",
   "Jun",
   "Jul",
-  "Aug",
+  "Agu",
   "Sep",
-  "Oct",
+  "Okt",
   "Nov",
-  "Dec",
+  "Des",
 ];
 
 export const getRowValue = (row: RowRecord | null, key: string) => {
@@ -29,7 +29,10 @@ export const normalizeMatch = (value: string) => value.toLowerCase().replace(/\s
 
 const toDateInputValue = (value: string) => {
   if (!value) return "";
-  const parsed = new Date(value);
+  const parsed = parseFlexibleDate(value);
+  if (!parsed) {
+    return "";
+  }
   if (!Number.isNaN(parsed.getTime())) {
     return parsed.toISOString().slice(0, 10);
   }
@@ -54,12 +57,38 @@ export const uniqueValues = (rows: RowRecord[], key: string) => {
   return Array.from(values).sort();
 };
 
+function parseFlexibleDate(value: string) {
+  if (!value) return null;
+
+  const trimmed = value.trim();
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]) - 1;
+    const day = Number(isoMatch[3]);
+    return new Date(year, month, day);
+  }
+
+  const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slashMatch) {
+    const day = Number(slashMatch[1]);
+    const month = Number(slashMatch[2]) - 1;
+    const year = Number(slashMatch[3]);
+    return new Date(year, month, day);
+  }
+
+  return getDateFromLabel(trimmed) ?? (() => {
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  })();
+}
+
 export const formatDateValue = (value: string) => {
   if (!value) return "-";
-  const parsed = getDateFromLabel(value) ?? new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
+  const parsed = parseFlexibleDate(value);
+  if (!parsed) return value;
   const day = String(parsed.getDate()).padStart(2, "0");
-  const month = MONTH_SHORT[parsed.getMonth()];
+  const month = MONTH_SHORT_ID[parsed.getMonth()];
   const year = parsed.getFullYear();
   return `${day} ${month} ${year}`;
 };
@@ -75,13 +104,17 @@ const monthMap: Record<string, number> = {
   feb: 1,
   mar: 2,
   apr: 3,
+  mei: 4,
   may: 4,
   jun: 5,
   jul: 6,
+  agu: 7,
   aug: 7,
   sep: 8,
+  okt: 9,
   oct: 9,
   nov: 10,
+  des: 11,
   dec: 11,
 };
 
@@ -103,7 +136,7 @@ export const formatDateLabel = (label: string) => {
   const date = getDateFromLabel(label);
   if (!date) return label;
   const day = String(date.getDate()).padStart(2, "0");
-  const month = MONTH_SHORT[date.getMonth()];
+  const month = MONTH_SHORT_ID[date.getMonth()];
   const year = date.getFullYear();
   return `${day} ${month} ${year}`;
 };
