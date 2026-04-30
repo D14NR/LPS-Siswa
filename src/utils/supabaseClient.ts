@@ -10,6 +10,13 @@ const supabaseUrl = rawUrl.startsWith("http")
 	? `https://${rawUrl}.supabase.co`
 	: "";
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+if (!supabaseUrl) {
+	console.error("⚠️ Supabase URL is not configured. Check that VITE_SUPABASE_URL is set in .env file");
+}
+if (!supabaseAnonKey) {
+	console.error("⚠️ Supabase Anon Key is not configured. Check that VITE_SUPABASE_ANON_KEY is set in .env file");
+}
+
+export const supabase = createClient(supabaseUrl || "https://dummy.supabase.co", supabaseAnonKey || "dummy-key");
 
 export default supabase;
