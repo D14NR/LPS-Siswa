@@ -15,6 +15,16 @@ const MONTH_SHORT_ID = [
   "Des",
 ];
 
+const WEEKDAY_ID = [
+  "Minggu",
+  "Senin",
+  "Selasa",
+  "Rabu",
+  "Kamis",
+  "Jumat",
+  "Sabtu",
+];
+
 export const getRowValue = (row: RowRecord | null, key: string) => {
   if (!row) return "";
   return row[key] ?? "";
@@ -87,16 +97,22 @@ export const formatDateValue = (value: string) => {
   if (!value) return "-";
   const parsed = parseFlexibleDate(value);
   if (!parsed) return value;
+  const weekday = WEEKDAY_ID[parsed.getDay()];
   const day = String(parsed.getDate()).padStart(2, "0");
   const month = MONTH_SHORT_ID[parsed.getMonth()];
   const year = parsed.getFullYear();
-  return `${day} ${month} ${year}`;
+  return `${weekday}, ${day} ${month} ${year}`;
 };
 
 export const formatDateForStorage = (value: string) => {
   if (!value) return "";
-  const formatted = formatDateValue(value);
-  return formatted === "-" ? "" : formatted;
+  const parsed = parseFlexibleDate(value);
+  if (!parsed) return "";
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const month = MONTH_SHORT_ID[parsed.getMonth()];
+  const year = parsed.getFullYear();
+  // Storage format: "29 Apr 2026"
+  return `${day} ${month} ${year}`;
 };
 
 const monthMap: Record<string, number> = {
@@ -135,10 +151,11 @@ export const getDateFromLabel = (label: string) => {
 export const formatDateLabel = (label: string) => {
   const date = getDateFromLabel(label);
   if (!date) return label;
+  const weekday = WEEKDAY_ID[date.getDay()];
   const day = String(date.getDate()).padStart(2, "0");
   const month = MONTH_SHORT_ID[date.getMonth()];
   const year = date.getFullYear();
-  return `${day} ${month} ${year}`;
+  return `${weekday}, ${day} ${month} ${year}`;
 };
 
 const mapelDictionary: Record<string, string> = {

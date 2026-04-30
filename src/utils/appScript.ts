@@ -7,7 +7,8 @@ type AppScriptPayload = Record<string, string>;
 const normalizeDatePayload = (payload: AppScriptPayload) => {
   return Object.fromEntries(
     Object.entries(payload).map(([key, value]) => {
-      const isDateField = key.toLowerCase().includes("tanggal");
+      const lk = key.toLowerCase();
+      const isDateField = lk.includes("tanggal") || lk.includes("timestamp");
       return [key, isDateField ? formatDateForStorage(value) : value];
     })
   ) as AppScriptPayload;

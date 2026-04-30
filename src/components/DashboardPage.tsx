@@ -251,7 +251,7 @@ export function DashboardPage({
               </svg>
             </div>
             <div>
-              <p className="text-sm font-bold text-slate-900">Input Presensi</p>
+              <p className="text-sm font-bold text-slate-900">Presensi (Sakit/Izin/Alpha)</p>
               <p className="mt-0.5 text-xs text-slate-500">Sakit · Izin · Alpha</p>
             </div>
             <svg className="ml-auto h-4 w-4 text-red-400 opacity-0 transition group-hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -269,7 +269,7 @@ export function DashboardPage({
               </svg>
             </div>
             <div>
-              <p className="text-sm font-bold text-slate-900">Input Pelayanan</p>
+              <p className="text-sm font-bold text-slate-900">Presensi Pelayanan/Jam Tambahan</p>
               <p className="mt-0.5 text-xs text-slate-500">Catat jam tambahan belajar</p>
             </div>
             <svg className="ml-auto h-4 w-4 text-slate-400 opacity-0 transition group-hover:opacity-100 group-hover:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

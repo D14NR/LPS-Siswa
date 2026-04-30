@@ -15,7 +15,9 @@ import {
   rowToRecord,
   sortRowsByDateDesc,
   type RowRecord,
+  getDateFromLabel,
 } from "@/utils/dataHelpers";
+import { supabase } from "@/utils/supabaseClient";
 
 const MENU_ITEMS = [
   "Dashboard Siswa",
@@ -151,15 +153,18 @@ const getHeaderIndex = (headers: string[], label: string) =>
 const parseDate = (value: string) => {
   if (!value) return null;
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  if (!Number.isNaN(parsed.getTime())) return parsed;
+  // Fallback: try parsing labels like "29 Apr 2026" or "02 Mei 2026"
+  const alt = getDateFromLabel(value);
+  return alt ?? null;
 };
 
-const formatDateHeader = (date: Date) =>
-  date.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+const formatDateHeader = (date: Date) => {
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"][date.getMonth()];
+  const year = date.getFullYear();
+  return `${day} ${month} ${year}`;
+};
 
 const filterRowsByNis = (table: TableData, nis: string) => {
   const nisIndex = getHeaderIndex(table.headers, "Nis");
@@ -255,7 +260,7 @@ export function App() {
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       setRefreshToken((prev) => prev + 1);
-    }, 5 * 60 * 1000);
+    }, 60 * 60 * 1000); // 1 hour
 
     return () => window.clearInterval(intervalId);
   }, []);
@@ -299,8 +304,14 @@ export function App() {
         }
 
         setBiodata(formatRows(parseCSV(biodataText)));
-        setJadwalReguler(formatRows(parseCSV(regulerText || "")));
-        setJadwalTambahan(formatRows(parseCSV(tambahanText || "")));
+        const parsedRegulerSheet = formatRows(parseCSV(regulerText || ""));
+        console.debug("Sheet: reguler parsed", parsedRegulerSheet.headers.length, "headers", parsedRegulerSheet.data.length, "rows");
+        if (!regulerText) console.warn("⚠️ Sheet Jadwal_Siswa fetch returned null or empty");
+        setJadwalReguler(parsedRegulerSheet);
+        const parsedTambahanSheet = formatRows(parseCSV(tambahanText || ""));
+        console.debug("Sheet: tambahan parsed", parsedTambahanSheet.headers.length, "headers", parsedTambahanSheet.data.length, "rows");
+        if (!tambahanText) console.warn("⚠️ Sheet Jadwal_Tambahan fetch returned null or empty");
+        setJadwalTambahan(parsedTambahanSheet);
         setPresensi(formatRows(parseCSV(presensiText || "")));
         setPerkembangan(formatRows(parseCSV(perkembanganText || "")));
         setPelayanan(formatRows(parseCSV(pelayananText || "")));
@@ -313,6 +324,195 @@ export function App() {
           nilaiData[item.label] = formatRows(parseCSV(nilaiTexts[index] || ""));
         });
         setNilaiTes(nilaiData);
+
+        // Fetch mata_pelajaran mapping to expand subject codes
+        const mataMap = new Map<string, string>();
+        try {
+          const { data: mataRows, error: mataError } = await supabase
+            .from("mata_pelajaran")
+            .select("*");
+          if (!mataError && Array.isArray(mataRows)) {
+            mataRows.forEach((m: any) => {
+              const kode = (m.kode_mapel ?? "").toString().trim();
+              const nama = (m.mapel ?? "").toString().trim();
+              if (kode) mataMap.set(kode, nama);
+            });
+          }
+        } catch (e) {
+          // ignore
+        }
+
+        // Attempt to fetch "reguler" schedule from Supabase table `jadwal_reguler`.
+        // Transform normalized rows (one per schedule entry) into the
+        // CSV-like table shape: headers + data rows grouped by (Cabang, Kelompok Kelas).
+        try {
+          const { data: supaRows, error: supaError } = await supabase
+            .from("jadwal_reguler")
+            .select("*")
+            .order("class_order", { ascending: true });
+
+          if (supaError) {
+            console.error("❌ Supabase jadwal_reguler fetch error:", supaError);
+          } else if (!Array.isArray(supaRows)) {
+            console.warn("⚠️ Supabase jadwal_reguler returned non-array:", supaRows);
+          } else if (supaRows.length === 0) {
+            console.warn("⚠️ Supabase jadwal_reguler returned empty array");
+          } else {
+            console.log("✓ Supabase: jadwal_reguler rows:", supaRows.length);
+            console.log("Sample row 0:", supaRows[0]);
+            console.log("Sample row 1:", supaRows[1]);
+          }
+          if (!supaError && Array.isArray(supaRows) && supaRows.length > 0) {
+            // Collect unique dates and group by cabang+kelas
+            const dateSet = new Set<string>();
+            const groupMap = new Map<string, Record<string, string>>();
+
+            for (const r of supaRows) {
+              const cabang = (r.cabang ?? "").toString();
+              const kelas = (r.kelas ?? "").toString();
+              const tanggalRaw = (r.tanggal ?? "").toString();
+              const mapel = (r.mapel ?? "").toString();
+              const waktu = (r.waktu ?? "").toString();
+
+              // Normalize date label to the same format used by CSV headers when possible
+              const parsedDate = parseDate(tanggalRaw);
+              const dateLabel = parsedDate ? formatDateHeader(parsedDate) : tanggalRaw || "";
+              if (dateLabel) dateSet.add(dateLabel);
+
+              const key = `${cabang}||${kelas}`;
+              if (!groupMap.has(key)) {
+                groupMap.set(key, {
+                  Cabang: cabang,
+                  "Kelompok Kelas": kelas,
+                });
+              }
+              const entry = groupMap.get(key)!;
+
+              // Store value in a format parseScheduleValue expects: "subject / time"
+              // expand mapel code if available in mataMap, fallback to raw value
+              const kodeMapel = (mapel ?? "").toString().trim();
+              const mapelLabel = mataMap.get(kodeMapel) ?? mapel;
+              const cellValue = mapelLabel
+                ? waktu
+                  ? `${mapelLabel} / ${waktu}`
+                  : `${mapelLabel}`
+                : waktu
+                ? `${waktu}`
+                : "";
+
+              if (dateLabel) entry[dateLabel] = entry[dateLabel] ? `${entry[dateLabel]}\n${cellValue}` : cellValue;
+            }
+
+            // Sort date labels chronologically when possible
+            const dateLabels = Array.from(dateSet);
+            dateLabels.sort((a, b) => {
+              const da = parseDate(a);
+              const db = parseDate(b);
+              if (da && db) return da.getTime() - db.getTime();
+              if (da) return -1;
+              if (db) return 1;
+              return a.localeCompare(b);
+            });
+
+            const headers = ["Cabang", "Kelompok Kelas", ...dateLabels];
+            const dataRows = Array.from(groupMap.values()).map((entry) =>
+              headers.map((h) => (entry[h] == null ? "" : String(entry[h])))
+            );
+
+            if (dataRows.length > 0) {
+              console.log("✓ jadwal_reguler transformed:", { headers, rowCount: dataRows.length });
+              console.log("First row:", dataRows[0]);
+              setJadwalReguler({ headers, data: dataRows });
+            } else {
+              console.warn("⚠️ jadwal_reguler transformation failed. Headers:", headers.length, "Rows:", dataRows.length);
+            }
+          }
+        } catch (e) {
+          // ignore Supabase errors and fall back to CSV source
+        }
+
+        // Attempt to fetch "khusus" (jadwal tambahan) from Supabase table `jadwal_khusus`.
+        try {
+          const { data: supaKhusus, error: supaKhususError } = await supabase
+            .from("jadwal_khusus")
+            .select("*")
+            .order("class_order", { ascending: true });
+
+          if (supaKhususError) {
+            console.error("❌ Supabase jadwal_khusus fetch error:", supaKhususError);
+          } else if (!Array.isArray(supaKhusus)) {
+            console.warn("⚠️ Supabase jadwal_khusus returned non-array:", supaKhusus);
+          } else if (supaKhusus.length === 0) {
+            console.warn("⚠️ Supabase jadwal_khusus returned empty array");
+          } else {
+            console.log("✓ Supabase: jadwal_khusus rows:", supaKhusus.length);
+            console.log("Sample khusus row 0:", supaKhusus[0]);
+          }
+          if (!supaKhususError && Array.isArray(supaKhusus) && supaKhusus.length > 0) {
+            const dateSet = new Set<string>();
+            const groupMap = new Map<string, Record<string, string>>();
+
+            for (const r of supaKhusus) {
+              const cabang = (r.cabang ?? "").toString();
+              const sekolah = (r.sekolah ?? "").toString();
+              const kelas = (r.kelas ?? "").toString();
+              const tanggalRaw = (r.tanggal ?? "").toString();
+              const mapel = (r.mapel ?? "").toString();
+              const waktu = (r.waktu ?? "").toString();
+
+              const parsedDate = parseDate(tanggalRaw);
+              const dateLabel = parsedDate ? formatDateHeader(parsedDate) : tanggalRaw || "";
+              if (dateLabel) dateSet.add(dateLabel);
+
+              // Group by cabang + sekolah (Asal Sekolah)
+              const key = `${cabang}||${sekolah}`;
+              if (!groupMap.has(key)) {
+                groupMap.set(key, {
+                  Cabang: cabang,
+                  "Asal Sekolah": sekolah,
+                  "Kelompok Kelas": kelas,
+                });
+              }
+              const entry = groupMap.get(key)!;
+
+              const kodeMapel = (mapel ?? "").toString().trim();
+              const mapelLabel = mataMap.get(kodeMapel) ?? mapel;
+              const cellValue = mapelLabel
+                ? waktu
+                  ? `${mapelLabel} / ${waktu}`
+                  : `${mapelLabel}`
+                : waktu
+                ? `${waktu}`
+                : "";
+
+              if (dateLabel) entry[dateLabel] = entry[dateLabel] ? `${entry[dateLabel]}\n${cellValue}` : cellValue;
+            }
+
+            const dateLabels = Array.from(dateSet);
+            dateLabels.sort((a, b) => {
+              const da = parseDate(a);
+              const db = parseDate(b);
+              if (da && db) return da.getTime() - db.getTime();
+              if (da) return -1;
+              if (db) return 1;
+              return a.localeCompare(b);
+            });
+
+            const headers = ["Cabang", "Asal Sekolah", "Kelompok Kelas", ...dateLabels];
+            const dataRows = Array.from(groupMap.values()).map((entry) =>
+              headers.map((h) => (entry[h] == null ? "" : String(entry[h])))
+            );
+
+            if (dataRows.length > 0) {
+              console.log("✓ jadwal_tambahan transformed:", { headers, rowCount: dataRows.length });
+              setJadwalTambahan({ headers, data: dataRows });
+            } else {
+              console.warn("⚠️ jadwal_tambahan transformation failed. Headers:", headers.length, "Rows:", dataRows.length);
+            }
+          }
+        } catch (e) {
+          // ignore
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Terjadi kesalahan.");
       } finally {
@@ -322,6 +522,29 @@ export function App() {
 
     fetchData();
   }, [refreshToken]);
+
+  useEffect(() => {
+    // Also try fetching pengajar contact list from Supabase and override waPengajar
+    (async () => {
+      try {
+        const { data: supaPengajar, error } = await supabase.from("pengajar").select("*").order("nama", { ascending: true });
+        if (!error && Array.isArray(supaPengajar) && supaPengajar.length > 0) {
+          const headers = ["Pengajar", "Mata Pelajaran", "No. Whatsapp", "Email", "Domisili", "Kode Pengajar"];
+          const dataRows = supaPengajar.map((r: any) => [
+            r.nama ?? "",
+            r.bidang_studi ?? "",
+            r.no_whatsapp ?? "",
+            r.email ?? "",
+            r.domisili ?? "",
+            r.kode_pengajar ?? "",
+          ]);
+          setWaPengajar({ headers, data: dataRows });
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (activeNis) {
@@ -397,12 +620,24 @@ export function App() {
     if (!studentRow) return { reguler: null, tambahan: [], tambahanPrimary: null };
     const kelasIndex = getHeaderIndex(biodata.headers, "Kelompok Kelas");
     const asalSekolahIndex = getHeaderIndex(biodata.headers, "Asal Sekolah");
+    const cabangIndex = getHeaderIndex(biodata.headers, "Cabang");
     const kelasRaw = kelasIndex >= 0 ? studentRow[kelasIndex] : "";
     const asalSekolah = asalSekolahIndex >= 0 ? studentRow[asalSekolahIndex] : "";
+    const studentCabang = cabangIndex >= 0 ? studentRow[cabangIndex] : "";
     const kelasList = kelasRaw
       .split(/,|;/)
       .map((item) => item.trim())
       .filter(Boolean);
+
+    console.log("🔍 studentSchedule debug:", {
+      studentNIS: activeNis,
+      kelasRaw,
+      kelasList,
+      asalSekolah,
+      studentCabang,
+      jadwalRegulerRowCount: jadwalReguler.data.length,
+      jadwalRegulerHeaders: jadwalReguler.headers,
+    });
 
     const selectRowWithSchedule = (
       table: TableData,
@@ -411,15 +646,12 @@ export function App() {
       const cabangIdx = getHeaderIndex(table.headers, "Cabang");
       const kelasIdx = getHeaderIndex(table.headers, "Kelompok Kelas");
       const matches = table.data.filter((row) => predicate(row, cabangIdx, kelasIdx));
+      console.log("🔍 selectRowWithSchedule matches:", matches.length);
       if (matches.length === 0) return null;
       const hasSchedule = (row: string[]) =>
         row.some((cell, idx) => idx > 1 && cell.trim() !== "");
       return matches.find(hasSchedule) || matches[0];
     };
-
-    const studentCabang = getHeaderIndex(biodata.headers, "Cabang") >= 0
-      ? studentRow[getHeaderIndex(biodata.headers, "Cabang")]
-      : "";
 
     const regulerRow = kelasList.length
       ? selectRowWithSchedule(jadwalReguler, (row, cabangIdx, kelasIdx) => {
@@ -429,6 +661,8 @@ export function App() {
         })
       : null;
 
+    console.log("🔍 regulerRow result:", regulerRow ? "FOUND" : "NOT FOUND");
+
     const tambahanRows = asalSekolah
       ? (() => {
           const asalIndex = getHeaderIndex(jadwalTambahan.headers, "Asal Sekolah");
@@ -437,13 +671,18 @@ export function App() {
           return jadwalTambahan.data.filter((row) => {
             const asalValue = asalIndex >= 0 ? row[asalIndex] : "";
             const cabangValue = cabangIndex >= 0 ? row[cabangIndex] : "";
-            const asalMatch = normalize(asalValue) === normalize(asalSekolah);
+            const a = normalize(asalValue);
+            const b = normalize(asalSekolah);
+            // allow exact match or substring match in either direction
+            const asalMatch = a === b || (a && b && (a.includes(b) || b.includes(a)));
             const cabangMatch =
               !studentCabang || cabangIndex === -1 || normalize(cabangValue) === normalize(studentCabang);
             return asalMatch && cabangMatch;
           });
         })()
       : [];
+
+    console.log("🔍 tambahanRows result:", tambahanRows.length);
 
     const tambahanPrimary = tambahanRows.length
       ? tambahanRows.find((row) => row.some((cell, idx) => idx > 2 && cell.trim() !== "")) || tambahanRows[0]
@@ -454,11 +693,16 @@ export function App() {
       tambahan: tambahanRows,
       tambahanPrimary,
     };
-  }, [studentRow, biodata.headers, jadwalReguler, jadwalTambahan]);
+  }, [studentRow, biodata.headers, jadwalReguler, jadwalTambahan, activeNis]);
 
   const regulerScheduleRecord = useMemo<RowRecord | null>(() => {
-    if (!studentSchedule.reguler) return null;
-    return rowToRecord(jadwalReguler.headers, studentSchedule.reguler);
+    if (!studentSchedule.reguler) {
+      console.log("❌ regulerScheduleRecord: studentSchedule.reguler is null/falsy");
+      return null;
+    }
+    const result = rowToRecord(jadwalReguler.headers, studentSchedule.reguler);
+    console.log("✓ regulerScheduleRecord:", { headerCount: jadwalReguler.headers.length, recordKeys: Object.keys(result).length, result });
+    return result;
   }, [jadwalReguler.headers, studentSchedule.reguler]);
 
   // All matching reguler rows (same Kelompok Kelas AND same Cabang) — may have multiple rows per date
@@ -499,10 +743,15 @@ export function App() {
   }, [jadwalTambahan.headers, studentSchedule.tambahan]);
 
   const scheduleColumns = useMemo<ScheduleColumn[]>(() => {
-    if (!jadwalReguler.headers.length) return [];
-    return jadwalReguler.headers
+    if (!jadwalReguler.headers.length) {
+      console.log("❌ scheduleColumns: jadwalReguler.headers is empty");
+      return [];
+    }
+    const cols = jadwalReguler.headers
       .filter((header) => header !== "Cabang" && header !== "Kelompok Kelas")
       .map((header) => ({ dateLabel: header, mapel: header }));
+    console.log("✓ scheduleColumns:", { count: cols.length, columns: cols.map(c => c.dateLabel) });
+    return cols;
   }, [jadwalReguler.headers]);
 
 
