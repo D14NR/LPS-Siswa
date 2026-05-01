@@ -754,7 +754,11 @@ export function App() {
     return cols;
   }, [jadwalReguler.headers]);
 
-
+  const parseTimeToMinutes = (time: string) => {
+    const match = time.match(/^(\d{1,2})[:\.](\d{2})/);
+    if (!match) return Number.POSITIVE_INFINITY;
+    return Number(match[1]) * 60 + Number(match[2]);
+  };
 
   // Compute ALL today's sessions from every matching reguler row
   const todaySchedules = useMemo(() => {
@@ -774,6 +778,7 @@ export function App() {
               label: "Jadwal Reguler",
               subject: parsed.subject,
               time: parsed.time,
+              kelas: row["Kelompok Kelas"] || row["kelompok Kelas"] || row["Kelas"] || "",
               dateValue: new Date().toISOString().slice(0, 10),
             });
           }
@@ -786,6 +791,8 @@ export function App() {
       const tambahanIndex = getHeaderIndex(jadwalTambahan.headers, todayKey);
       if (tambahanIndex >= 0 && studentSchedule.tambahanPrimary) {
         const rawVal = studentSchedule.tambahanPrimary[tambahanIndex] || "";
+        const kelasIndex = getHeaderIndex(jadwalTambahan.headers, "Kelompok Kelas");
+        const kelasValue = kelasIndex >= 0 ? studentSchedule.tambahanPrimary[kelasIndex] || "" : "";
         if (rawVal && rawVal !== "-") {
           // split by newline in case merged rows
           const parts = rawVal.split("\n").filter(Boolean);
@@ -796,6 +803,7 @@ export function App() {
                 label: "Jadwal Tambahan",
                 subject: parsed.subject,
                 time: parsed.time,
+                kelas: kelasValue,
                 dateValue: new Date().toISOString().slice(0, 10),
               });
             }
@@ -804,7 +812,12 @@ export function App() {
       }
     }
 
-    return sessions;
+    return sessions.sort((a, b) => {
+      const aMin = parseTimeToMinutes(a.time);
+      const bMin = parseTimeToMinutes(b.time);
+      if (aMin === bMin) return a.subject.localeCompare(b.subject);
+      return aMin - bMin;
+    });
   }, [jadwalReguler.headers, jadwalTambahan.headers, regulerAllRows, studentSchedule.tambahanPrimary]);
 
   // Keep single todaySchedule for backward compat (presensi modal etc.)

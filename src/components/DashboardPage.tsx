@@ -189,17 +189,19 @@ export function DashboardPage({
                   {todaySchedules[0].label} &bull; {todaySchedules.length} Sesi
                 </p>
                 {todaySchedules.map((session, idx) => (
-                  <div key={idx} className="flex items-start gap-3 rounded-xl bg-white/10 px-4 py-3 backdrop-blur-sm">
-                    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white/20 text-xs font-bold text-white">
-                      {idx + 1}
+                  <div key={idx} className="flex items-center gap-4 rounded-2xl bg-white/10 px-4 py-3 backdrop-blur-sm shadow-sm ring-1 ring-white/10">
+                    <div className="flex h-12 min-w-[96px] items-center justify-center rounded-3xl bg-white/10 px-3 text-center text-sm font-semibold uppercase tracking-[0.12em] text-white/90 shadow-sm">
+                      {session.kelas || "-"}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-base font-bold text-white">{session.subject}</p>
-                      <div className="mt-1 flex items-center gap-1.5 text-xs text-red-100">
-                        <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        {session.time || "Jam belum ditentukan"}
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-red-100">
+                        <div className="inline-flex items-center gap-1">
+                          <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          {session.time || "Jam belum ditentukan"}
+                        </div>
                       </div>
                     </div>
                   </div>

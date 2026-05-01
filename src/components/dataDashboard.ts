@@ -2,6 +2,7 @@ export type TodaySession = {
   label: string;
   subject: string;
   time: string;
+  kelas?: string;
   dateValue?: string;
 };
 
