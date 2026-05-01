@@ -59,6 +59,23 @@ const parseScheduleSessions = (value: string) => {
   return parts.map(parseScheduleLine).filter((item) => item.subject || item.time);
 };
 
+const parseTimeToMinutes = (time: string) => {
+  const match = time.match(/^(\d{1,2})[:\.](\d{2})/);
+  if (!match) return Number.POSITIVE_INFINITY;
+  return Number(match[1]) * 60 + Number(match[2]);
+};
+
+const sortSessionsByTime = <T extends { time: string }>(sessions: T[]) => {
+  return [...sessions].sort((a, b) => {
+    const timeA = parseTimeToMinutes(a.time);
+    const timeB = parseTimeToMinutes(b.time);
+    if (timeA === timeB) {
+      return a.time.localeCompare(b.time);
+    }
+    return timeA - timeB;
+  });
+};
+
 export function SchedulePage({
   selectedSchedule,
   scheduleColumns,
@@ -151,7 +168,7 @@ export function SchedulePage({
           ) : (
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {datesWithSessions.map((col) => {
-                const sessions = dateSessionMap[col.dateLabel] ?? [];
+                const sessions = sortSessionsByTime(dateSessionMap[col.dateLabel] ?? []);
                 const scheduleDate = getDateFromLabel(col.dateLabel);
                 const statusLabel = scheduleDate
                   ? scheduleDate.getTime() === startOfToday.getTime()
@@ -171,7 +188,7 @@ export function SchedulePage({
                 return (
                   <div
                     key={col.dateLabel}
-                    className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-red-50 p-5"
+                    className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-red-50 p-5 shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -184,23 +201,19 @@ export function SchedulePage({
                       )}
                     </div>
                     <p className="mt-2 text-xs text-slate-400">{asalSekolah}</p>
-                    <div className="mt-3 space-y-2">
+                    <div className="mt-4 space-y-3">
                       {sessions.map((session, idx) => (
                         <div
                           key={`${col.dateLabel}-${idx}`}
-                          className="rounded-xl border border-slate-200 bg-white px-3 py-2"
+                          className="flex items-center justify-between gap-4 rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm"
                         >
-                          <div className="flex items-start gap-2">
-                            <span className="mt-0.5 rounded-md bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600">
-                              {session.kelompokKelas}
-                            </span>
+                          <div className="flex min-w-[110px] items-center justify-center rounded-3xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm">
+                            {session.kelompokKelas}
                           </div>
-                          <p className="mt-1 text-sm font-semibold text-slate-900">
-                            {session.subject || "-"}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {session.time || "Jam belum ditentukan"}
-                          </p>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-900">{session.subject || "-"}</p>
+                            <p className="mt-1 text-xs text-slate-500">{session.time || "Jam belum ditentukan"}</p>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -215,13 +228,15 @@ export function SchedulePage({
   }
 
   // Build a merged date→sessions map from all reguler rows for the same class
-  type RegulerSession = { subject: string; time: string };
+  type RegulerSession = { subject: string; time: string; kelompokKelas: string };
   const regulerDateMap: Record<string, RegulerSession[]> = {};
   const allRegulerRows = regulerAllRows && regulerAllRows.length > 0
     ? regulerAllRows
     : [selectedSchedule];
 
   allRegulerRows.forEach((row: RowRecord) => {
+    const kelompokKelas =
+      row[scheduleClassKey] || row["Kelompok Kelas"] || row["kelompok Kelas"] || "-";
     scheduleColumns.forEach((col) => {
       const cellValue = (row[col.dateLabel] || "").trim();
       if (!cellValue) return;
@@ -231,6 +246,7 @@ export function SchedulePage({
       regulerDateMap[col.dateLabel].push({
         subject: expandMapel(parsed.subject),
         time: parsed.time,
+        kelompokKelas,
       });
     });
   });
@@ -253,8 +269,8 @@ export function SchedulePage({
         </div>
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {displayColumns.map((col) => {
-            const sessions = regulerDateMap[col.dateLabel];
-            if (!sessions || sessions.length === 0) return null;
+            const sessions = sortSessionsByTime(regulerDateMap[col.dateLabel] ?? []);
+            if (!sessions.length) return null;
 
             const scheduleDate = getDateFromLabel(col.dateLabel);
             const statusLabel = scheduleDate
@@ -275,7 +291,7 @@ export function SchedulePage({
             return (
               <div
                 key={col.dateLabel}
-                className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-red-50 p-4"
+                className="flex flex-col gap-2 rounded-[28px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-red-50 p-5 shadow-sm ring-1 ring-slate-100 transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
               >
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
@@ -287,11 +303,19 @@ export function SchedulePage({
                     </span>
                   )}
                 </div>
-                <div className="mt-1 space-y-2">
+                <div className="mt-4 space-y-3">
                   {sessions.map((session, idx) => (
-                    <div key={idx} className="rounded-xl border border-slate-100 bg-white px-3 py-2">
-                      <p className="text-sm font-semibold text-slate-900">{session.subject || "-"}</p>
-                      <p className="text-xs text-slate-500">{session.time || "Jam belum ditentukan"}</p>
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between gap-4 rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm"
+                    >
+                      <div className="min-w-[100px] rounded-3xl bg-slate-100 px-4 py-3 text-center text-sm font-semibold text-slate-900 shadow-sm">
+                        {session.kelompokKelas || "-"}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-900">{session.subject || "-"}</p>
+                        <p className="mt-1 text-xs text-slate-500">{session.time || "Jam belum ditentukan"}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
