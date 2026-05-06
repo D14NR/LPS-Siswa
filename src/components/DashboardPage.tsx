@@ -8,12 +8,84 @@ import { formatDateForStorage, formatDateValue, getRowValue, uniqueValues } from
 import { postAppScript } from "@/utils/appScript";
 
 const rv = (row: RowRecord | null, key: string) => (row ? getRowValue(row, key) || "" : "");
+
+const normalizeKey = (key: string) =>
+  key.toLowerCase().replace(/[_\s]+/g, "");
+
+const getRowValueFlexible = (row: RowRecord | null, expectedKeys: string[] = []) => {
+  if (!row) return "";
+
+  for (const key of expectedKeys) {
+    const value = getRowValue(row, key);
+    if (value) return value;
+  }
+
+  const normalizedExpected = expectedKeys.map(normalizeKey);
+  for (const [key, value] of Object.entries(row)) {
+    const normalizedKey = normalizeKey(key);
+    if (normalizedExpected.includes(normalizedKey) && value) {
+      return value;
+    }
+  }
+
+  // Fallback: detect fields by keywords if exact matches fail
+  for (const [key, value] of Object.entries(row)) {
+    const normalizedKey = normalizeKey(key);
+    if (!value) continue;
+
+    if (expectedKeys.some((expected) => normalizeKey(expected).includes("tanggal") && normalizeKey(expected).includes("disetujui"))) {
+      if (normalizedKey.includes("tanggal") && normalizedKey.includes("disetujui")) {
+        return value;
+      }
+    }
+
+    if (expectedKeys.some((expected) => normalizeKey(expected).includes("jam") && normalizeKey(expected).includes("disetujui"))) {
+      if (normalizedKey.includes("jam") && normalizedKey.includes("disetujui")) {
+        return value;
+      }
+    }
+
+    if (expectedKeys.some((expected) => normalizeKey(expected).includes("timestamp"))) {
+      if (normalizedKey.includes("timestamp") || normalizedKey.includes("createdat")) {
+        return value;
+      }
+    }
+  }
+
+  return "";
+};
+
 const rdv = (row: RowRecord | null) =>
-  row ? formatDateValue(getRowValue(row, "Tanggal") || getRowValue(row, "Timestamp")) : "";
-const approvalDate = (row: RowRecord | null) =>
-  row ? formatDateValue(getRowValue(row, "Tanggal disetujui") || getRowValue(row, "Tanggal Disetujui")) : "";
+  row ? formatDateValue(getRowValueFlexible(row, ["Tanggal", "Timestamp"])) : "";
+const approvalDate = (row: RowRecord | null) => {
+  const rawDate = getRowValueFlexible(row, [
+    "Tanggal disetujui",
+    "Tanggal Disetujui",
+    "tanggal_disetujui",
+    "tanggal disetujui",
+  ]);
+  return rawDate ? formatDateValue(rawDate) : "";
+};
 const approvalTime = (row: RowRecord | null) =>
-  row ? getRowValue(row, "Jam disetujui") || getRowValue(row, "Jam Disetujui") || "" : "";
+  getRowValueFlexible(row, [
+    "Jam disetujui",
+    "Jam Disetujui",
+    "jam_disetujui",
+    "jam disetujui",
+  ]);
+
+// Format lengkap untuk approval info
+const formatApprovalInfo = (row: RowRecord | null) => {
+  if (!row) return "";
+  const date = approvalDate(row);
+  const time = approvalTime(row);
+  const cabang = rv(row, "Cabang");
+  if (!date && !time) return "";
+  const datePart = date ? date : "";
+  const timePart = time ? ` jam ${time}` : "";
+  const cabangPart = cabang ? ` di ${cabang}` : "";
+  return `Disetujui : ${datePart}${timePart}${cabangPart}`.trim();
+};
 
 const statusColor = (status: string) => {
   const s = (status || "").toLowerCase();
@@ -31,6 +103,7 @@ type DashboardPageProps = {
   latestNilai: RowRecord | null;
   latestPelayanan: RowRecord | null;
   latestPermintaan: RowRecord | null;
+  permintaanRows?: RowRecord[];
   pengajarRows: RowRecord[];
   onNavigate?: (menu: string) => void;
 };
@@ -44,6 +117,7 @@ export function DashboardPage({
   latestNilai,
   latestPelayanan,
   latestPermintaan,
+  permintaanRows = [],
   pengajarRows,
   onNavigate,
 }: DashboardPageProps) {
@@ -158,8 +232,7 @@ export function DashboardPage({
                   {rv(latestPermintaan, "Mata Pelajaran") || "-"} &mdash; {rv(latestPermintaan, "Pengajar") || "-"}
                 </p>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  {rdv(latestPermintaan)} &bull; {rv(latestPermintaan, "Cabang") || "-"}
-                  {approvalDate(latestPermintaan) ? ` &bull; Disetujui: ${approvalDate(latestPermintaan)} ${approvalTime(latestPermintaan)}` : ""}
+                  {formatApprovalInfo(latestPermintaan) || `${rdv(latestPermintaan)} • ${rv(latestPermintaan, "Cabang") || "-"}`}
                 </p>
               </div>
             </div>
@@ -565,6 +638,68 @@ export function DashboardPage({
           />
         </div>
       </Modal>
+
+      {/* ── RIWAYAT PERMINTAAN PELAYANAN ── */}
+      {permintaanRows.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="border-b border-slate-200 px-6 py-4 bg-slate-50">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-700">📋 Riwayat Permintaan Pelayanan</h3>
+            <p className="mt-1 text-xs text-slate-500">Pantau status permintaan yang sudah diajukan</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-100 text-slate-600">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs uppercase tracking-wider">Tanggal</th>
+                  <th className="px-4 py-3 text-left text-xs uppercase tracking-wider">Mata Pelajaran</th>
+                  <th className="px-4 py-3 text-left text-xs uppercase tracking-wider">Pengajar</th>
+                  <th className="px-4 py-3 text-left text-xs uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-left text-xs uppercase tracking-wider">Disetujui</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {permintaanRows.slice(0, 5).map((row, idx) => {
+                  const status = rv(row, "Status") || "Menunggu";
+                  const approvalDateVal = approvalDate(row);
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50 transition">
+                      <td className="px-4 py-3 text-slate-900 font-medium">{rdv(row)}</td>
+                      <td className="px-4 py-3 text-slate-700">{rv(row, "Mata Pelajaran") || "-"}</td>
+                      <td className="px-4 py-3 text-slate-700">{rv(row, "Pengajar") || "-"}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${statusColor(status)}`}>
+                          {status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 text-xs">
+                        {approvalDateVal ? (
+                          <div>
+                            <p>{approvalDateVal}</p>
+                            {approvalTime(row) && <p className="text-slate-500">{approvalTime(row)}</p>}
+                          </div>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {permintaanRows.length > 5 && (
+            <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 text-center">
+              <button
+                onClick={() => onNavigate?.("No. Whatsapp Pengajar")}
+                className="text-xs font-semibold text-red-600 hover:underline"
+              >
+                Lihat semua permintaan ({permintaanRows.length} total) →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+

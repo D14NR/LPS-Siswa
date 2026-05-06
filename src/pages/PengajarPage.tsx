@@ -11,7 +11,8 @@ import {
   matchesTextFilter,
   uniqueValues,
 } from "@/utils/dataHelpers";
-import { postAppScript } from "@/utils/appScript";
+import { savePermintaanPelayanan, fetchPermintaanByNis, convertPermintaanArrayToRowRecords } from "@/utils/permintaanService";
+import { supabase } from "@/utils/supabaseClient";
 
 type PengajarPageProps = {
   pengajarRows: RowRecord[];
@@ -21,13 +22,14 @@ type PengajarPageProps = {
 
 const PAGE_SIZE = 12;
 
-export function PengajarPage({ pengajarRows, selectedStudent, permintaanRows }: PengajarPageProps) {
+export function PengajarPage({ pengajarRows, selectedStudent, permintaanRows: initialPermintaanRows }: PengajarPageProps) {
   const [page, setPage] = useState(1);
   const [mapelFilter, setMapelFilter] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [contactRow, setContactRow] = useState<RowRecord | null>(null);
   const [contactKeperluan, setContactKeperluan] = useState("");
+  const [permintaanRows, setPermintaanRows] = useState<RowRecord[]>(initialPermintaanRows);
   const [formState, setFormState] = useState({
     tanggal: "",
     mataPelajaran: "",
@@ -36,14 +38,87 @@ export function PengajarPage({ pengajarRows, selectedStudent, permintaanRows }: 
   });
   const [submitState, setSubmitState] = useState({ loading: false, error: "", success: "" });
   const [flashMessage, setFlashMessage] = useState("");
+  const [mataPelajaranOptions, setMataPelajaranOptions] = useState<string[]>([]);
+  const [pengajarOptions, setPengajarOptions] = useState<string[]>([]);
+
+  // Fetch mata pelajaran and pengajar options from Supabase
+  useEffect(() => {
+    const fetchOptions = async () => {
+      try {
+        // Fetch mata pelajaran
+        const { data: mataData, error: mataError } = await supabase
+          .from("mata_pelajaran")
+          .select("mapel")
+          .order("mapel");
+
+        if (!mataError && Array.isArray(mataData)) {
+          const mapelList = mataData.map((m: any) => m.mapel).filter(Boolean);
+          setMataPelajaranOptions(mapelList);
+        }
+
+        // Fetch pengajar names
+        const { data: pengajarData, error: pengajarError } = await supabase
+          .from("pengajar")
+          .select("nama")
+          .order("nama");
+
+        if (!pengajarError && Array.isArray(pengajarData)) {
+          const pengajarList = pengajarData.map((p: any) => p.nama).filter(Boolean);
+          setPengajarOptions(pengajarList);
+        }
+      } catch (error) {
+        console.error("❌ Error fetching options:", error);
+      }
+    };
+
+    fetchOptions();
+  }, []);
+
+  // Fetch permintaan data from Supabase for the selected student
+  useEffect(() => {
+    const fetchPermintaan = async () => {
+      if (!selectedStudent) {
+        console.log("ℹ️ No selected student");
+        setPermintaanRows([]);
+        return;
+      }
+      try {
+        const nis = getRowValue(selectedStudent, "Nis");
+        console.log("👤 Selected student NIS:", nis);
+        if (!nis) {
+          console.warn("⚠️ NIS not found in selected student data");
+          setPermintaanRows(initialPermintaanRows);
+          return;
+        }
+        const data = await fetchPermintaanByNis(nis);
+        console.log("📥 Received", data.length, "permintaan records from Supabase");
+        const rows = convertPermintaanArrayToRowRecords(data);
+        setPermintaanRows(rows);
+        console.log("✅ Updated permintaanRows state with", rows.length, "rows");
+      } catch (error) {
+        console.error("❌ Error fetching permintaan:", error);
+        setPermintaanRows(initialPermintaanRows);
+      }
+    };
+
+    fetchPermintaan();
+  }, [selectedStudent, initialPermintaanRows]);
+
+  // Debug: log whenever permintaanRows changes
+  useEffect(() => {
+    console.log("📋 permintaanRows state updated:", permintaanRows.length, "rows");
+    if (permintaanRows.length > 0) {
+      console.log("First row:", permintaanRows[0]);
+    }
+  }, [permintaanRows]);
 
   const mapelOptions = useMemo(
-    () => uniqueValues(pengajarRows, "Mata Pelajaran"),
-    [pengajarRows]
+    () => mataPelajaranOptions,
+    [mataPelajaranOptions]
   );
-  const pengajarOptions = useMemo(
-    () => uniqueValues(pengajarRows, "Pengajar"),
-    [pengajarRows]
+  const pengajarOptionsMemo = useMemo(
+    () => pengajarOptions,
+    [pengajarOptions]
   );
 
   const filteredRows = useMemo(
@@ -175,16 +250,28 @@ export function PengajarPage({ pengajarRows, selectedStudent, permintaanRows }: 
 
     try {
       setSubmitState({ loading: true, error: "", success: "" });
-      await postAppScript("permintaan", {
+      await savePermintaanPelayanan({
         nis: getRowValue(selectedStudent, "Nis"),
         nama: getRowValue(selectedStudent, "Nama"),
         cabang: getRowValue(selectedStudent, "Cabang"),
         tanggal: formatDateForStorage(formState.tanggal),
-        mataPelajaran: formState.mataPelajaran,
+        mata_pelajaran: formState.mataPelajaran,
         pengajar: formState.pengajar,
         keperluan: formState.keperluan,
         status: "Menunggu",
       });
+
+      // Refetch permintaan data to update the history table
+      try {
+        const nis = getRowValue(selectedStudent, "Nis");
+        if (nis) {
+          const data = await fetchPermintaanByNis(nis);
+          const rows = convertPermintaanArrayToRowRecords(data);
+          setPermintaanRows(rows);
+        }
+      } catch (error) {
+        console.error("Error refetching permintaan:", error);
+      }
 
       if (!waUrl) {
         setFlashMessage(
@@ -239,6 +326,7 @@ export function PengajarPage({ pengajarRows, selectedStudent, permintaanRows }: 
         <div className="border-b border-slate-200 px-6 py-4">
           <h3 className="text-lg font-semibold text-slate-900">Riwayat Permintaan Pelayanan</h3>
           <p className="mt-1 text-sm text-slate-500">Pantau status permintaan yang sudah diajukan.</p>
+          <p className="mt-2 text-xs text-slate-400">[DEBUG] {permintaanRows.length} records</p>
         </div>
         {permintaanRows.length === 0 ? (
           <div className="px-6 py-10 text-center text-sm text-slate-500">
@@ -457,7 +545,7 @@ export function PengajarPage({ pengajarRows, selectedStudent, permintaanRows }: 
             label="Pengajar"
             value={formState.pengajar}
             onChange={(value) => setFormState((prev) => ({ ...prev, pengajar: value }))}
-            options={pengajarOptions}
+            options={pengajarOptionsMemo}
             placeholder="Pilih pengajar"
             labelClassName="text-xs uppercase tracking-[0.3em] text-slate-500"
             inputClassName="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"

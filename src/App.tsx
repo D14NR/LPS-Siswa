@@ -18,6 +18,7 @@ import {
   getDateFromLabel,
 } from "@/utils/dataHelpers";
 import { supabase } from "@/utils/supabaseClient";
+import { convertPermintaanArrayToRowRecords, syncApprovedToJadwalKhusus } from "@/utils/permintaanService";
 
 const MENU_ITEMS = [
   "Dashboard Siswa",
@@ -257,12 +258,67 @@ export function App() {
   const [refreshToken, setRefreshToken] = useState(0);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
+  // Refetch permintaan data from Supabase every 30 seconds
+  const refetchPermintaan = async () => {
+    try {
+      console.log("🔄 Refetching permintaan data...");
+      const { data: permintaanData, error: permintaanError } = await supabase
+        .from("permintaan_pelayanan")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (permintaanError) {
+        console.warn("⚠️ Supabase permintaan refetch error:", permintaanError);
+        return;
+      }
+
+      if (Array.isArray(permintaanData) && permintaanData.length > 0) {
+        console.log("✓ Refetch: permintaan_pelayanan rows:", permintaanData.length);
+        const permintaanRows = convertPermintaanArrayToRowRecords(permintaanData);
+        const headers = [
+          "Nis",
+          "Nama",
+          "Cabang",
+          "Tanggal",
+          "Mata Pelajaran",
+          "Pengajar",
+          "Keperluan",
+          "Status",
+          "Tanggal Disetujui",
+          "Jam Disetujui",
+        ];
+        const dataRows = permintaanRows.map((row) =>
+          headers.map((h) => row[h] || "")
+        );
+        setPermintaan({ headers, data: dataRows });
+          // Attempt to sync approved permintaan into jadwal_khusus
+          try {
+            await syncApprovedToJadwalKhusus();
+          } catch (e) {
+            console.error("❌ Error syncing approved permintaan to jadwal_khusus:", e);
+          }
+      }
+    } catch (e) {
+      console.error("❌ Error refetching permintaan:", e);
+    }
+  };
+
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       setRefreshToken((prev) => prev + 1);
     }, 60 * 60 * 1000); // 1 hour
 
     return () => window.clearInterval(intervalId);
+  }, []);
+
+  // Refetch permintaan data every 30 seconds to keep status updated
+  useEffect(() => {
+    refetchPermintaan();
+    const permintaanIntervalId = window.setInterval(() => {
+      refetchPermintaan();
+    }, 30 * 1000); // 30 seconds
+
+    return () => window.clearInterval(permintaanIntervalId);
   }, []);
 
   useEffect(() => {
@@ -315,9 +371,104 @@ export function App() {
         setPresensi(formatRows(parseCSV(presensiText || "")));
         setPerkembangan(formatRows(parseCSV(perkembanganText || "")));
         setPelayanan(formatRows(parseCSV(pelayananText || "")));
-        setPengajar(formatRows(parseCSV(pengajarText || "")));
+        
+        // Fetch pengajar from Supabase table `pengajar`
+        try {
+          const { data: pengajarData, error: pengajarError } = await supabase
+            .from("pengajar")
+            .select("*")
+            .order("nama", { ascending: true });
+
+          if (pengajarError) {
+            console.warn("⚠️ Supabase pengajar fetch error:", pengajarError);
+            setPengajar(formatRows(parseCSV(pengajarText || "")));
+          } else if (Array.isArray(pengajarData) && pengajarData.length > 0) {
+            console.log("✓ Supabase: pengajar rows:", pengajarData.length);
+            // Convert to table format with headers: ["Nama", "Kode Pengajar", "No. Whatsapp"]
+            const headers = ["Nama", "Kode Pengajar", "No. Whatsapp"];
+            const dataRows = pengajarData.map((row: any) => [
+              row.nama || "",
+              row.kode_pengajar || "",
+              row.no_whatsapp || ""
+            ]);
+            setPengajar({ headers, data: dataRows });
+          } else {
+            console.warn("⚠️ Supabase pengajar returned empty");
+            setPengajar(formatRows(parseCSV(pengajarText || "")));
+          }
+        } catch (e) {
+          console.error("❌ Error fetching pengajar:", e);
+          setPengajar(formatRows(parseCSV(pengajarText || "")));
+        }
+        
         setWaPengajar(formatRows(parseCSV(waPengajarText || "")));
-        setPermintaan(formatRows(parseCSV(permintaanText || "")));
+        
+        // Fetch waPengajar from Supabase table `pengajar`
+        try {
+          const { data: waPengajarData, error: waPengajarError } = await supabase
+            .from("pengajar")
+            .select("nama, bidang_studi, no_whatsapp")
+            .order("nama", { ascending: true });
+
+          if (waPengajarError) {
+            console.warn("⚠️ Supabase waPengajar fetch error:", waPengajarError);
+            setWaPengajar(formatRows(parseCSV(waPengajarText || "")));
+          } else if (Array.isArray(waPengajarData) && waPengajarData.length > 0) {
+            console.log("✓ Supabase: waPengajar rows:", waPengajarData.length);
+            // Convert to table format with headers: ["Pengajar", "Mata Pelajaran", "No. Whatsapp"]
+            const headers = ["Pengajar", "Mata Pelajaran", "No. Whatsapp"];
+            const dataRows = waPengajarData.map((row: any) => [
+              row.nama || "",
+              row.bidang_studi || "",
+              row.no_whatsapp || ""
+            ]);
+            setWaPengajar({ headers, data: dataRows });
+          } else {
+            console.warn("⚠️ Supabase waPengajar returned empty");
+            setWaPengajar(formatRows(parseCSV(waPengajarText || "")));
+          }
+        } catch (e) {
+          console.error("❌ Error fetching waPengajar:", e);
+          setWaPengajar(formatRows(parseCSV(waPengajarText || "")));
+        }
+        
+        // Fetch permintaan_pelayanan from Supabase
+        try {
+          const { data: permintaanData, error: permintaanError } = await supabase
+            .from("permintaan_pelayanan")
+            .select("*")
+            .order("created_at", { ascending: false });
+
+          if (permintaanError) {
+            console.warn("⚠️ Supabase permintaan_pelayanan fetch error:", permintaanError);
+            setPermintaan(formatRows(parseCSV(permintaanText || "")));
+          } else if (Array.isArray(permintaanData) && permintaanData.length > 0) {
+            console.log("✓ Supabase: permintaan_pelayanan rows:", permintaanData.length);
+            const permintaanRows = convertPermintaanArrayToRowRecords(permintaanData);
+            const headers = [
+              "Nis",
+              "Nama",
+              "Cabang",
+              "Tanggal",
+              "Mata Pelajaran",
+              "Pengajar",
+              "Keperluan",
+              "Status",
+              "Tanggal Disetujui",
+              "Jam Disetujui",
+            ];
+            const dataRows = permintaanRows.map((row) =>
+              headers.map((h) => row[h] || "")
+            );
+            setPermintaan({ headers, data: dataRows });
+          } else {
+            console.warn("⚠️ Supabase permintaan_pelayanan returned empty");
+            setPermintaan(formatRows(parseCSV(permintaanText || "")));
+          }
+        } catch (e) {
+          console.error("❌ Error fetching permintaan_pelayanan:", e);
+          setPermintaan(formatRows(parseCSV(permintaanText || "")));
+        }
 
         const nilaiData: Record<string, TableData> = {};
         NILAI_SHEETS.forEach((item, index) => {
