@@ -105,6 +105,7 @@ type DashboardPageProps = {
   latestPermintaan: RowRecord | null;
   permintaanRows?: RowRecord[];
   pengajarRows: RowRecord[];
+  mataPelajaranOptions?: string[];
   onNavigate?: (menu: string) => void;
 };
 
@@ -119,6 +120,7 @@ export function DashboardPage({
   latestPermintaan,
   permintaanRows = [],
   pengajarRows,
+  mataPelajaranOptions = [],
   onNavigate,
 }: DashboardPageProps) {
   const [presensiOpen, setPresensiOpen] = useState(false);
@@ -131,7 +133,9 @@ export function DashboardPage({
   });
   const [pelayananSubmit, setPelayananSubmit] = useState({ loading: false, error: "", success: "" });
 
-  const mapelOptions = uniqueValues(pengajarRows, "Mata Pelajaran");
+  const mapelOptions = mataPelajaranOptions.length
+    ? mataPelajaranOptions
+    : uniqueValues(pengajarRows, "Mata Pelajaran");
   const pengajarOptions = uniqueValues(pengajarRows, "Pengajar");
 
   const resolvedTanggal = todaySchedule?.dateValue ?? "";

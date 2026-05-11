@@ -20,6 +20,7 @@ type PresensiPageProps = {
   presensiRows: RowRecord[];
   todaySchedule: { label: string; subject: string; time: string; dateValue?: string } | null;
   pengajarRows: RowRecord[];
+  mataPelajaranOptions: string[];
 };
 
 const PAGE_SIZE = 10;
@@ -29,6 +30,7 @@ export function PresensiPage({
   presensiRows,
   todaySchedule,
   pengajarRows,
+  mataPelajaranOptions,
 }: PresensiPageProps) {
   const [page, setPage] = useState(1);
   const statusSummary = useMemo(() => {
@@ -56,7 +58,13 @@ export function PresensiPage({
   const [dateFilter, setDateFilter] = useState("");
   const [mapelFilter, setMapelFilter] = useState("");
 
-  const mapelOptions = useMemo(() => uniqueValues(pengajarRows, "Mata Pelajaran"), [pengajarRows]);
+  const mapelOptions = useMemo(
+    () =>
+      mataPelajaranOptions.length
+        ? mataPelajaranOptions
+        : uniqueValues(pengajarRows, "Mata Pelajaran"),
+    [mataPelajaranOptions, pengajarRows]
+  );
 
   const filteredRows = useMemo(
     () =>

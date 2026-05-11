@@ -19,11 +19,17 @@ type PelayananPageProps = {
   selectedStudent: RowRecord | null;
   pelayananRows: RowRecord[];
   pengajarRows: RowRecord[];
+  mataPelajaranOptions: string[];
 };
 
 const PAGE_SIZE = 10;
 
-export function PelayananPage({ selectedStudent, pelayananRows, pengajarRows }: PelayananPageProps) {
+export function PelayananPage({
+  selectedStudent,
+  pelayananRows,
+  pengajarRows,
+  mataPelajaranOptions,
+}: PelayananPageProps) {
   const [page, setPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formState, setFormState] = useState({
@@ -48,7 +54,13 @@ export function PelayananPage({ selectedStudent, pelayananRows, pengajarRows }: 
   const [dateFilter, setDateFilter] = useState("");
   const [mapelFilter, setMapelFilter] = useState("");
 
-  const mapelOptions = useMemo(() => uniqueValues(pengajarRows, "Mata Pelajaran"), [pengajarRows]);
+  const mapelOptions = useMemo(
+    () =>
+      mataPelajaranOptions.length
+        ? mataPelajaranOptions
+        : uniqueValues(pengajarRows, "Mata Pelajaran"),
+    [mataPelajaranOptions, pengajarRows]
+  );
 
   const pengajarOptions = useMemo(() => uniqueValues(pengajarRows, "Pengajar"), [pengajarRows]);
 

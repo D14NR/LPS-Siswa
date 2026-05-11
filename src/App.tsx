@@ -248,6 +248,7 @@ export function App() {
   const [pengajar, setPengajar] = useState<TableData>({ headers: [], data: [] });
   const [waPengajar, setWaPengajar] = useState<TableData>({ headers: [], data: [] });
   const [permintaan, setPermintaan] = useState<TableData>({ headers: [], data: [] });
+  const [mataPelajaranOptions, setMataPelajaranOptions] = useState<string[]>([]);
   const [nilaiTes, setNilaiTes] = useState<Record<string, TableData>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -483,14 +484,19 @@ export function App() {
             .from("mata_pelajaran")
             .select("*");
           if (!mataError && Array.isArray(mataRows)) {
+            const mapelSet = new Set<string>();
             mataRows.forEach((m: any) => {
               const kode = (m.kode_mapel ?? "").toString().trim();
               const nama = (m.mapel ?? "").toString().trim();
               if (kode) mataMap.set(kode, nama);
+              if (nama) mapelSet.add(nama);
             });
+            setMataPelajaranOptions(Array.from(mapelSet).sort((a, b) => a.localeCompare(b)));
+          } else {
+            setMataPelajaranOptions([]);
           }
         } catch (e) {
-          // ignore
+          setMataPelajaranOptions([]);
         }
 
         // Attempt to fetch "reguler" schedule from Supabase table `jadwal_reguler`.
@@ -1109,6 +1115,7 @@ export function App() {
             latestPelayanan={latestPelayanan}
             latestPermintaan={latestPermintaan}
             pengajarRows={pengajarRecords}
+            mataPelajaranOptions={mataPelajaranOptions}
             onNavigate={setActiveMenu}
           />
         );
@@ -1151,6 +1158,7 @@ export function App() {
             presensiRows={presensiRowsRecord}
             todaySchedule={todayScheduleWithDate}
             pengajarRows={pengajarRecords.length ? pengajarRecords : presensiRowsRecord}
+            mataPelajaranOptions={mataPelajaranOptions}
           />
         );
       case "Riwayat Perkembangan Belajar": {
@@ -1174,6 +1182,7 @@ export function App() {
             selectedStudent={selectedStudent}
             pelayananRows={pelayananRows}
             pengajarRows={pengajarRecords}
+            mataPelajaranOptions={mataPelajaranOptions}
           />
         );
       }
