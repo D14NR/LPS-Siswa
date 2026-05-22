@@ -109,10 +109,10 @@ export const formatDateForStorage = (value: string) => {
   const parsed = parseFlexibleDate(value);
   if (!parsed) return "";
   const day = String(parsed.getDate()).padStart(2, "0");
-  const month = MONTH_SHORT_ID[parsed.getMonth()];
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
   const year = parsed.getFullYear();
-  // Storage format: "29 Apr 2026"
-  return `${day} ${month} ${year}`;
+  // Storage format: ISO date YYYY-MM-DD
+  return `${year}-${month}-${day}`;
 };
 
 const monthMap: Record<string, number> = {

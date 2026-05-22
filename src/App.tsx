@@ -621,8 +621,8 @@ export function App() {
               const dateLabel = parsedDate ? formatDateHeader(parsedDate) : tanggalRaw || "";
               if (dateLabel) dateSet.add(dateLabel);
 
-              // Group by cabang + sekolah (Asal Sekolah)
-              const key = `${cabang}||${sekolah}`;
+              // Group by cabang + sekolah + kelas to preserve separate class schedules
+              const key = `${cabang}||${sekolah}||${kelas}`;
               if (!groupMap.has(key)) {
                 groupMap.set(key, {
                   Cabang: cabang,
@@ -830,16 +830,17 @@ export function App() {
             const cabangValue = cabangIndex >= 0 ? row[cabangIndex] : "";
             const a = normalize(asalValue);
             const b = normalize(asalSekolah);
-            // allow exact match or substring match in either direction
+            const c = normalize(cabangValue);
+            const d = normalize(studentCabang);
             const asalMatch = a === b || (a && b && (a.includes(b) || b.includes(a)));
             const cabangMatch =
-              !studentCabang || cabangIndex === -1 || normalize(cabangValue) === normalize(studentCabang);
+              !studentCabang || cabangIndex === -1 ||
+              c === d ||
+              (c && d && (c.includes(d) || d.includes(c)));
             return asalMatch && cabangMatch;
           });
         })()
       : [];
-
-    console.log("🔍 tambahanRows result:", tambahanRows.length);
 
     const tambahanPrimary = tambahanRows.length
       ? tambahanRows.find((row) => row.some((cell, idx) => idx > 2 && cell.trim() !== "")) || tambahanRows[0]
