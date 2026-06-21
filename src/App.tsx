@@ -336,6 +336,8 @@ export function App() {
 
         const [
           regulerText,
+
+        
           tambahanText,
           presensiText,
           perkembanganText,
@@ -409,8 +411,10 @@ export function App() {
             console.warn("⚠️ Supabase presensi fetch error:", presensiError);
             setPresensi(formatRows(parseCSV(presensiText || "")));
           } else if (Array.isArray(presensiData)) {
-            const headers = ["Tanggal", "Mata Pelajaran", "Status", "Cabang"];
+            const headers = ["Nis", "Nama", "Tanggal", "Mata Pelajaran", "Status", "Cabang"];
             const dataRows = presensiData.map((r: any) => [
+              r.nis ?? "",
+              r.nama ?? "",
               r.tanggal ? formatDateValue(r.tanggal) : "",
               r.mata_pelajaran ?? "",
               r.kehadiran ?? "",
@@ -435,8 +439,10 @@ export function App() {
             console.warn("⚠️ Supabase perkembangan fetch error:", perkembanganError);
             setPerkembangan(formatRows(parseCSV(perkembanganText || "")));
           } else if (Array.isArray(perkembanganData)) {
-            const headers = ["Tanggal", "Mata Pelajaran", "Materi", "Penguasaan", "Penjelasan", "Kondisi", "Catatan", "Cabang"];
+            const headers = ["Nis", "Nama", "Tanggal", "Mata Pelajaran", "Materi", "Penguasaan", "Penjelasan", "Kondisi", "Catatan", "Cabang"];
             const dataRows = perkembanganData.map((r: any) => [
+              r.nis ?? "",
+              r.nama ?? "",
               r.tanggal ? formatDateValue(r.tanggal) : "",
               r.mata_pelajaran ?? "",
               r.materi_sub_bab ?? "",
@@ -465,8 +471,10 @@ export function App() {
             console.warn("⚠️ Supabase tambahan_pelayanan fetch error:", tambahanError);
             setPelayanan(formatRows(parseCSV(pelayananText || "")));
           } else if (Array.isArray(tambahanData)) {
-            const headers = ["Tanggal", "Mata Pelajaran", "Materi", "Durasi", "Pengajar", "Cabang"];
+            const headers = ["Nis", "Nama", "Tanggal", "Mata Pelajaran", "Materi", "Durasi", "Pengajar", "Cabang"];
             const dataRows = tambahanData.map((r: any) => [
+              r.nis ?? "",
+              r.nama ?? "",
               r.tanggal ? formatDateValue(r.tanggal) : "",
               r.mata_pelajaran ?? "",
               r.materi_sub_bab ?? "",
@@ -595,8 +603,10 @@ export function App() {
             .select("*")
             .order("tanggal", { ascending: false });
           if (!snbtError && Array.isArray(snbtData) && snbtData.length > 0) {
-            const headers = ["Tanggal", "Jenis Tes", "PU", "PPU", "PBM", "PK", "LIB", "LING", "PM", "Rerata", "Total", "Cabang"];
+            const headers = ["Nis", "Nama", "Tanggal", "Jenis Tes", "PU", "PPU", "PBM", "PK", "LIB", "LING", "PM", "Rerata", "Total", "Cabang"];
             const dataRows = snbtData.map((r: any) => [
+              r.nis ?? "",
+              r.nama ?? "",
               r.tanggal ? formatDateValue(r.tanggal) : "",
               r.jenis_tes ?? "",
               r.pu != null ? String(r.pu) : "",
@@ -619,8 +629,10 @@ export function App() {
             .select("*")
             .order("tanggal", { ascending: false });
           if (!evalError && Array.isArray(evalData) && evalData.length > 0) {
-            const headers = ["Tanggal", "Mata Pelajaran", "Sub Bab", "Nilai", "Cabang"];
+            const headers = ["Nis", "Nama", "Tanggal", "Mata Pelajaran", "Sub Bab", "Nilai", "Cabang"];
             const dataRows = evalData.map((r: any) => [
+              r.nis ?? "",
+              r.nama ?? "",
               r.tanggal ? formatDateValue(r.tanggal) : "",
               r.mata_pelajaran ?? "",
               r.sub_bab ?? "",
@@ -645,8 +657,10 @@ export function App() {
                 return jt.includes(term.toLowerCase());
               });
               if (filtered.length > 0) {
-                const headers = ["Tanggal", "Jenis Tes", "Mata Pelajaran", "Nilai", "Cabang"];
+                const headers = ["Nis", "Nama", "Tanggal", "Jenis Tes", "Mata Pelajaran", "Nilai", "Cabang"];
                 const dataRows = filtered.map((r: any) => [
+                  r.nis ?? "",
+                  r.nama ?? "",
                   r.tanggal ? formatDateValue(r.tanggal) : "",
                   r.jenis_tes ?? "",
                   r.mata_pelajaran ?? "",
@@ -660,8 +674,10 @@ export function App() {
             const tkaLabels = NILAI_SHEETS.filter((s) => s.label.startsWith("Nilai TKA")).map((s) => s.label);
             const anyTkaFilled = tkaLabels.some((lbl) => Array.isArray(nilaiData[lbl]?.data) && nilaiData[lbl].data.length > 0);
             if (!anyTkaFilled && tkaLabels.length > 0) {
-              const headers = ["Tanggal", "Jenis Tes", "Mata Pelajaran", "Nilai", "Cabang"];
+              const headers = ["Nis", "Nama", "Tanggal", "Jenis Tes", "Mata Pelajaran", "Nilai", "Cabang"];
               const dataRows = standarData.map((r: any) => [
+                r.nis ?? "",
+                r.nama ?? "",
                 r.tanggal ? formatDateValue(r.tanggal) : "",
                 r.jenis_tes ?? "",
                 r.mata_pelajaran ?? "",
@@ -880,6 +896,236 @@ export function App() {
 
     fetchData();
   }, [refreshToken]);
+
+  // Real-time subscriptions: update local tables when Supabase emits changes
+  useEffect(() => {
+    const refetchPresensi = async () => {
+      try {
+        const { data: presensiData, error: presensiError } = await supabase
+          .from("perkembangan_belajar")
+          .select("*")
+          .order("tanggal", { ascending: false });
+        if (!presensiError && Array.isArray(presensiData)) {
+          const headers = ["Nis", "Nama", "Tanggal", "Mata Pelajaran", "Status", "Cabang"];
+          const dataRows = presensiData.map((r: any) => [
+            r.nis ?? "",
+            r.nama ?? "",
+            r.tanggal ? formatDateValue(r.tanggal) : "",
+            r.mata_pelajaran ?? "",
+            r.kehadiran ?? "",
+            r.cabang ?? "",
+          ]);
+          setPresensi({ headers, data: dataRows });
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    const refetchPerkembangan = async () => {
+      try {
+        const { data: perkembanganData, error: perkembanganError } = await supabase
+          .from("perkembangan_belajar")
+          .select("*")
+          .order("tanggal", { ascending: false });
+        if (!perkembanganError && Array.isArray(perkembanganData)) {
+          const headers = ["Nis", "Nama", "Tanggal", "Mata Pelajaran", "Materi", "Penguasaan", "Penjelasan", "Kondisi", "Catatan", "Cabang"];
+          const dataRows = perkembanganData.map((r: any) => [
+            r.nis ?? "",
+            r.nama ?? "",
+            r.tanggal ? formatDateValue(r.tanggal) : "",
+            r.mata_pelajaran ?? "",
+            r.materi_sub_bab ?? "",
+            r.prosen_penguasaan != null ? `${Number(r.prosen_penguasaan).toFixed(2)}%` : "",
+            r.prosen_penjelasan != null ? `${Number(r.prosen_penjelasan).toFixed(2)}%` : "",
+            r.prosen_kondisi != null ? `${Number(r.prosen_kondisi).toFixed(2)}%` : "",
+            r.catatan_pengajar ?? "",
+            r.cabang ?? "",
+          ]);
+          setPerkembangan({ headers, data: dataRows });
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    const refetchPelayanan = async () => {
+      try {
+        const { data: tambahanData, error: tambahanError } = await supabase
+          .from("tambahan_pelayanan")
+          .select("*")
+          .order("tanggal", { ascending: false });
+        if (!tambahanError && Array.isArray(tambahanData)) {
+          const headers = ["Nis", "Nama", "Tanggal", "Mata Pelajaran", "Materi", "Durasi", "Pengajar", "Cabang"];
+          const dataRows = tambahanData.map((r: any) => [
+            r.nis ?? "",
+            r.nama ?? "",
+            r.tanggal ? formatDateValue(r.tanggal) : "",
+            r.mata_pelajaran ?? "",
+            r.materi_sub_bab ?? "",
+            r.durasi ?? "",
+            r.pengajar ?? "",
+            r.cabang ?? "",
+          ]);
+          setPelayanan({ headers, data: dataRows });
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    const refetchNilaiTables = async () => {
+      try {
+        const [{ data: snbtData }, { data: evalData }, { data: standarData }] = await Promise.all([
+          supabase.from("nilai_snbt_utbk").select("*").order("tanggal", { ascending: false }),
+          supabase.from("nilai_evaluasi").select("*").order("tanggal", { ascending: false }),
+          supabase.from("nilai_standar").select("*").order("tanggal", { ascending: false }),
+        ]);
+
+        const nilaiDataCopy: Record<string, TableData> = { ...nilaiTes };
+
+        if (Array.isArray(snbtData) && snbtData.length > 0) {
+          const headers = ["Nis", "Nama", "Tanggal", "Jenis Tes", "PU", "PPU", "PBM", "PK", "LIB", "LING", "PM", "Rerata", "Total", "Cabang"];
+          nilaiDataCopy["Nilai UTBK"] = {
+            headers,
+            data: snbtData.map((r: any) => [
+              r.nis ?? "",
+              r.nama ?? "",
+              r.tanggal ? formatDateValue(r.tanggal) : "",
+              r.jenis_tes ?? "",
+              r.pu != null ? String(r.pu) : "",
+              r.ppu != null ? String(r.ppu) : "",
+              r.pbm != null ? String(r.pbm) : "",
+              r.pk != null ? String(r.pk) : "",
+              r.lib != null ? String(r.lib) : "",
+              r.ling != null ? String(r.ling) : "",
+              r.pm != null ? String(r.pm) : "",
+              r.rerata != null ? String(r.rerata) : "",
+              r.total != null ? String(r.total) : "",
+              r.cabang ?? "",
+            ]),
+          };
+        }
+
+        if (Array.isArray(evalData) && evalData.length > 0) {
+          const headers = ["Nis", "Nama", "Tanggal", "Mata Pelajaran", "Sub Bab", "Nilai", "Cabang"];
+          nilaiDataCopy["Nilai EVALUASI"] = {
+            headers,
+            data: evalData.map((r: any) => [
+              r.nis ?? "",
+              r.nama ?? "",
+              r.tanggal ? formatDateValue(r.tanggal) : "",
+              r.mata_pelajaran ?? "",
+              r.sub_bab ?? "",
+              r.nilai != null ? String(r.nilai) : "",
+              r.cabang ?? "",
+            ]),
+          };
+        }
+
+        if (Array.isArray(standarData) && standarData.length > 0) {
+          const tkaLabels = NILAI_SHEETS.filter((s) => s.label.startsWith("Nilai TKA")).map((s) => s.label);
+          const headers = ["Nis", "Nama", "Tanggal", "Jenis Tes", "Mata Pelajaran", "Nilai", "Cabang"];
+          const dataRows = standarData.map((r: any) => [
+            r.nis ?? "",
+            r.nama ?? "",
+            r.tanggal ? formatDateValue(r.tanggal) : "",
+            r.jenis_tes ?? "",
+            r.mata_pelajaran ?? "",
+            r.nilai != null ? String(r.nilai) : "",
+            r.cabang ?? "",
+          ]);
+          if (tkaLabels.length > 0) nilaiDataCopy[tkaLabels[0]] = { headers, data: dataRows };
+        }
+
+        setNilaiTes({ ...nilaiDataCopy });
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    const subs: any[] = [];
+    try {
+      subs.push(
+        supabase
+          .from("permintaan_pelayanan")
+          .on("INSERT", () => {
+            refetchPermintaan();
+          })
+          .on("UPDATE", () => {
+            refetchPermintaan();
+          })
+          .on("DELETE", () => {
+            refetchPermintaan();
+          })
+          .subscribe()
+      );
+
+      subs.push(
+        supabase
+          .from("perkembangan_belajar")
+          .on("INSERT", () => {
+            refetchPerkembangan();
+            refetchPresensi();
+          })
+          .on("UPDATE", () => {
+            refetchPerkembangan();
+            refetchPresensi();
+          })
+          .on("DELETE", () => {
+            refetchPerkembangan();
+            refetchPresensi();
+          })
+          .subscribe()
+      );
+
+      subs.push(
+        supabase
+          .from("tambahan_pelayanan")
+          .on("INSERT", () => refetchPelayanan())
+          .on("UPDATE", () => refetchPelayanan())
+          .on("DELETE", () => refetchPelayanan())
+          .subscribe()
+      );
+
+      subs.push(
+        supabase
+          .from("nilai_snbt_utbk")
+          .on("INSERT", () => refetchNilaiTables())
+          .on("UPDATE", () => refetchNilaiTables())
+          .on("DELETE", () => refetchNilaiTables())
+          .subscribe()
+      );
+
+      subs.push(
+        supabase
+          .from("nilai_evaluasi")
+          .on("INSERT", () => refetchNilaiTables())
+          .on("UPDATE", () => refetchNilaiTables())
+          .on("DELETE", () => refetchNilaiTables())
+          .subscribe()
+      );
+
+      subs.push(
+        supabase
+          .from("nilai_standar")
+          .on("INSERT", () => refetchNilaiTables())
+          .on("UPDATE", () => refetchNilaiTables())
+          .on("DELETE", () => refetchNilaiTables())
+          .subscribe()
+      );
+    } catch (e) {
+      // ignore subscription errors
+    }
+
+    return () => {
+      try {
+        subs.forEach((s) => s.unsubscribe && s.unsubscribe());
+      } catch (e) {
+        // ignore
+      }
+    };
+  }, [nilaiTes]);
 
   useEffect(() => {
     // Also try fetching pengajar contact list from Supabase and override waPengajar
