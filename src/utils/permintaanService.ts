@@ -1,4 +1,4 @@
-import { supabase } from "@/utils/supabaseClient";
+import { supabase, supabaseKBM } from "@/utils/supabaseClient";
 import type { RowRecord } from "@/utils/dataHelpers";
 
 export interface PermintaanPelayanan {
@@ -22,7 +22,7 @@ export interface PermintaanPelayanan {
  */
 export async function savePermintaanPelayanan(data: PermintaanPelayanan) {
   try {
-    const { data: result, error } = await supabase
+    const { data: result, error } = await supabaseKBM
       .from("permintaan_pelayanan")
       .insert([
         {
@@ -58,7 +58,7 @@ export async function fetchPermintaanByNis(nis: string) {
     const normalizedNis = nis.trim();
     console.log("🔍 Fetching permintaan for NIS:", normalizedNis);
     
-    const { data, error } = await supabase
+    const { data, error } = await supabaseKBM
       .from("permintaan_pelayanan")
       .select("*")
       .eq("nis", normalizedNis)
@@ -83,7 +83,7 @@ export async function fetchPermintaanByNis(nis: string) {
  */
 export async function fetchAllPermintaan() {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseKBM
       .from("permintaan_pelayanan")
       .select("*")
       .order("created_at", { ascending: false });
@@ -143,7 +143,7 @@ export function convertPermintaanArrayToRowRecords(
 export async function syncApprovedToJadwalKhusus() {
   try {
     console.log("🔁 Checking approved permintaan to sync to jadwal_khusus...");
-    const { data: approved, error } = await supabase
+    const { data: approved, error } = await supabaseKBM
       .from("permintaan_pelayanan")
       .select("*")
       .eq("status", "Disetujui");
@@ -169,7 +169,7 @@ export async function syncApprovedToJadwalKhusus() {
       // Get kode_pengajar from nama pengajar
       let kodePengajar = namaPengajar;
       try {
-        const { data: pengajarData, error: pengajarError } = await supabase
+        const { data: pengajarData, error: pengajarError } = await supabaseKBM
           .from("pengajar")
           .select("kode_pengajar")
           .eq("nama", namaPengajar)
@@ -183,7 +183,7 @@ export async function syncApprovedToJadwalKhusus() {
       }
 
       // Check for an existing jadwal_khusus matching the key fields
-      const { data: exists, error: checkError } = await supabase
+      const { data: exists, error: checkError } = await supabaseKBM
         .from("jadwal_khusus")
         .select("id")
         .eq("cabang", cabang)
@@ -214,7 +214,7 @@ export async function syncApprovedToJadwalKhusus() {
         waktu,
       };
 
-      const { error: insertError } = await supabase.from("jadwal_khusus").insert([insertPayload]);
+      const { error: insertError } = await supabaseKBM.from("jadwal_khusus").insert([insertPayload]);
       if (insertError) {
         console.error("❌ Failed to insert jadwal_khusus:", insertError, "payload:", insertPayload);
       } else {
@@ -224,4 +224,106 @@ export async function syncApprovedToJadwalKhusus() {
   } catch (err) {
     console.error("❌ syncApprovedToJadwalKhusus error:", err);
   }
+}
+
+/**
+ * DataSiswa type mirrors the `public.data_siswa` table
+ */
+export interface DataSiswa {
+  id?: string;
+  nis: string;
+  nama: string;
+  tanggal_lahir?: string | null;
+  asal_sekolah?: string | null;
+  jenjang_studi?: string | null;
+  no_whatsapp_siswa?: string | null;
+  no_whatsapp_orang_tua?: string | null;
+  email?: string | null;
+  kelompok_kelas?: string | null;
+  cabang?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  id_sekolah?: string | null;
+  id_kelompok_kelas?: string | null;
+}
+
+/**
+ * Fetch a single student profile by NIS
+ */
+export async function fetchDataSiswaByNis(nis: string) {
+  try {
+    const normalized = nis.trim();
+    const { data, error } = await supabase
+      .from("data_siswa")
+      .select("*")
+      .eq("nis", normalized)
+      .limit(1);
+
+    if (error) {
+      console.error("❌ Supabase error fetching data_siswa by NIS:", error);
+      throw new Error(error.message || "Gagal mengambil data siswa");
+    }
+
+    if (!Array.isArray(data) || data.length === 0) return null;
+    return data[0] as DataSiswa;
+  } catch (err) {
+    throw err instanceof Error ? err : new Error("Gagal mengambil data siswa");
+  }
+}
+
+/**
+ * Fetch a single student profile by id
+ */
+export async function fetchDataSiswaById(id: string) {
+  try {
+    const { data, error } = await supabase
+      .from("data_siswa")
+      .select("*")
+      .eq("id", id)
+      .limit(1);
+
+    if (error) {
+      throw new Error(error.message || "Gagal mengambil data siswa");
+    }
+    if (!Array.isArray(data) || data.length === 0) return null;
+    return data[0] as DataSiswa;
+  } catch (err) {
+    throw err instanceof Error ? err : new Error("Gagal mengambil data siswa");
+  }
+}
+
+/**
+ * Fetch all students (optional, use with care on large tables)
+ */
+export async function fetchAllDataSiswa() {
+  try {
+    const { data, error } = await supabase.from("data_siswa").select("*").order("nama", { ascending: true });
+    if (error) throw new Error(error.message || "Gagal mengambil daftar siswa");
+    return (data || []) as DataSiswa[];
+  } catch (err) {
+    throw err instanceof Error ? err : new Error("Gagal mengambil daftar siswa");
+  }
+}
+
+/**
+ * Convert a DataSiswa record to RowRecord for UI tables
+ */
+export function convertSiswaToRowRecord(s: DataSiswa): RowRecord {
+  return {
+    Nis: s.nis || "",
+    Nama: s.nama || "",
+    "Tanggal Lahir": s.tanggal_lahir || "",
+    "Asal Sekolah": s.asal_sekolah || "",
+    Jenjang: s.jenjang_studi || "",
+    "No WA Siswa": s.no_whatsapp_siswa || "",
+    "No WA Ortu": s.no_whatsapp_orang_tua || "",
+    Email: s.email || "",
+    "Kelompok Kelas": s.kelompok_kelas || "",
+    Cabang: s.cabang || "",
+    Timestamp: s.created_at || "",
+  };
+}
+
+export function convertSiswaArrayToRowRecords(list: DataSiswa[]): RowRecord[] {
+  return list.map(convertSiswaToRowRecord);
 }

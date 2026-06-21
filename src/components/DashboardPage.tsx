@@ -5,7 +5,7 @@ import { Modal } from "@/components/Modal";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import type { RowRecord } from "@/utils/dataHelpers";
 import { formatDateForStorage, formatDateValue, getRowValue, uniqueValues } from "@/utils/dataHelpers";
-import { postAppScript } from "@/utils/appScript";
+import { supabase } from "@/utils/supabaseClient";
 
 const rv = (row: RowRecord | null, key: string) => (row ? getRowValue(row, key) || "" : "");
 
@@ -162,15 +162,17 @@ export function DashboardPage({
     }
     try {
       setPresensiSubmit({ loading: true, error: "", success: "" });
-      await postAppScript("presensi", {
+      const presensiPayload = {
         nis: getRowValue(selectedStudent, "Nis"),
         nama: getRowValue(selectedStudent, "Nama"),
         tanggal: formatDateForStorage(resolvedTanggal),
-        kelas: getRowValue(selectedStudent, "Kelompok Kelas") || getRowValue(selectedStudent, "Kelompok") || getRowValue(selectedStudent, "Kelas"),
-        mataPelajaran: resolvedMapel,
+        kelas: getRowValue(selectedStudent, "Kelompok Kelas") || getRowValue(selectedStudent, "Kelompok") || getRowValue(selectedStudent, "Kelas") || null,
+        mata_pelajaran: resolvedMapel,
         status: presensiStatus,
-        cabang: getRowValue(selectedStudent, "Cabang"),
-      });
+        cabang: getRowValue(selectedStudent, "Cabang") || null,
+      };
+      const { error: presensiError } = await supabase.from("presensi").insert([presensiPayload]);
+      if (presensiError) throw new Error(presensiError.message || "Gagal menyimpan presensi.");
       setPresensiSubmit({ loading: false, error: "", success: "Presensi berhasil disimpan." });
       setTimeout(() => { setPresensiOpen(false); resetPresensi(); }, 1200);
     } catch (err) {
@@ -186,16 +188,18 @@ export function DashboardPage({
     }
     try {
       setPelayananSubmit({ loading: true, error: "", success: "" });
-      await postAppScript("pelayanan", {
+      const pelayananPayload = {
         nis: getRowValue(selectedStudent, "Nis"),
         nama: getRowValue(selectedStudent, "Nama"),
         tanggal: formatDateForStorage(pelayananForm.tanggal),
-        mataPelajaran: pelayananForm.mataPelajaran,
-        materi: pelayananForm.materi,
-        durasi: pelayananForm.durasi,
-        pengajar: pelayananForm.pengajar,
-        cabang: getRowValue(selectedStudent, "Cabang"),
-      });
+        mata_pelajaran: pelayananForm.mataPelajaran,
+        materi: pelayananForm.materi || null,
+        durasi: pelayananForm.durasi || null,
+        pengajar: pelayananForm.pengajar || null,
+        cabang: getRowValue(selectedStudent, "Cabang") || null,
+      };
+      const { error: pelayananError } = await supabase.from("pelayanan").insert([pelayananPayload]);
+      if (pelayananError) throw new Error(pelayananError.message || "Gagal menyimpan pelayanan.");
       setPelayananSubmit({ loading: false, error: "", success: "Pelayanan berhasil disimpan." });
       setTimeout(() => { setPelayananOpen(false); resetPelayanan(); }, 1200);
     } catch (err) {

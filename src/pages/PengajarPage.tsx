@@ -12,7 +12,7 @@ import {
   uniqueValues,
 } from "@/utils/dataHelpers";
 import { savePermintaanPelayanan, fetchPermintaanByNis, convertPermintaanArrayToRowRecords } from "@/utils/permintaanService";
-import { supabase } from "@/utils/supabaseClient";
+import { supabase, supabaseKBM } from "@/utils/supabaseClient";
 
 type PengajarPageProps = {
   pengajarRows: RowRecord[];
@@ -24,7 +24,7 @@ const PAGE_SIZE = 12;
 
 export function PengajarPage({ pengajarRows, selectedStudent, permintaanRows: initialPermintaanRows }: PengajarPageProps) {
   const [page, setPage] = useState(1);
-  const [mapelFilter, setMapelFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [contactRow, setContactRow] = useState<RowRecord | null>(null);
@@ -45,34 +45,49 @@ export function PengajarPage({ pengajarRows, selectedStudent, permintaanRows: in
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        // Fetch mata pelajaran
+        // Fetch mata pelajaran from LPS (primary source for subjects)
         const { data: mataData, error: mataError } = await supabase
           .from("mata_pelajaran")
           .select("mapel")
           .order("mapel");
 
-        if (!mataError && Array.isArray(mataData)) {
-          const mapelList = mataData.map((m: any) => m.mapel).filter(Boolean);
-          setMataPelajaranOptions(mapelList);
-        }
+        const mapelFromMata = !mataError && Array.isArray(mataData)
+          ? mataData.map((m: any) => m.mapel).filter(Boolean)
+          : [];
 
-        // Fetch pengajar names
-        const { data: pengajarData, error: pengajarError } = await supabase
+        // Fetch pengajar names + bidang_studi from KBM
+        const { data: pengajarData, error: pengajarError } = await supabaseKBM
           .from("pengajar")
-          .select("nama")
+          .select("nama, bidang_studi")
           .order("nama");
 
-        if (!pengajarError && Array.isArray(pengajarData)) {
-          const pengajarList = pengajarData.map((p: any) => p.nama).filter(Boolean);
-          setPengajarOptions(pengajarList);
-        }
+        const pengajarList = !pengajarError && Array.isArray(pengajarData)
+          ? pengajarData.map((p: any) => p.nama).filter(Boolean)
+          : [];
+
+        // Collect bidang_studi values from pengajar table
+        const bidangFromPengajar = !pengajarError && Array.isArray(pengajarData)
+          ? pengajarData.map((p: any) => (p.bidang_studi || "")).filter(Boolean)
+          : [];
+
+        // Also include any Mata Pelajaran values already present in the `pengajarRows` prop
+        const propMapel = pengajarRows
+          .map((r) => getRowValue(r, "Mata Pelajaran"))
+          .filter(Boolean as unknown as (v: string) => boolean);
+
+        // Merge and dedupe
+        const mergedSet = new Set<string>([...mapelFromMata, ...bidangFromPengajar, ...propMapel]);
+        const mergedList = Array.from(mergedSet).sort((a, b) => a.localeCompare(b));
+
+        setMataPelajaranOptions(mergedList);
+        setPengajarOptions(pengajarList);
       } catch (error) {
         console.error("❌ Error fetching options:", error);
       }
     };
 
     fetchOptions();
-  }, []);
+  }, [pengajarRows]);
 
   // Fetch permintaan data from Supabase for the selected student
   useEffect(() => {
@@ -112,26 +127,26 @@ export function PengajarPage({ pengajarRows, selectedStudent, permintaanRows: in
     }
   }, [permintaanRows]);
 
-  const mapelOptions = useMemo(
-    () => mataPelajaranOptions,
-    [mataPelajaranOptions]
-  );
+  const mapelOptions = useMemo(() => mataPelajaranOptions, [mataPelajaranOptions]);
   const pengajarOptionsMemo = useMemo(
     () => pengajarOptions,
     [pengajarOptions]
   );
 
-  const filteredRows = useMemo(
-    () =>
-      pengajarRows.filter((row) =>
-        matchesTextFilter(getRowValue(row, "Mata Pelajaran"), mapelFilter)
-      ),
-    [pengajarRows, mapelFilter]
-  );
+  const filteredRows = useMemo(() => {
+    if (!searchQuery) return pengajarRows;
+    const q = searchQuery.toLowerCase().trim();
+    return pengajarRows.filter((row) => {
+      const pengajar = (getRowValue(row, "Pengajar") || "").toLowerCase();
+      const mapel = (getRowValue(row, "Mata Pelajaran") || "").toLowerCase();
+      const wa = (getRowValue(row, "No. Whatsapp") || "").toLowerCase();
+      return pengajar.includes(q) || mapel.includes(q) || wa.includes(q);
+    });
+  }, [pengajarRows, searchQuery]);
 
   useEffect(() => {
     setPage(1);
-  }, [mapelFilter, pengajarRows.length]);
+  }, [searchQuery, pengajarRows.length]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const pageRows = useMemo(
@@ -396,15 +411,16 @@ export function PengajarPage({ pengajarRows, selectedStudent, permintaanRows: in
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <SearchableSelect
-              label="Filter Mapel"
-              value={mapelFilter}
-              onChange={setMapelFilter}
-              options={mapelOptions}
-              placeholder="Cari mata pelajaran"
-              labelClassName="text-[10px] uppercase tracking-[0.3em] text-slate-500"
-              inputClassName="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
-            />
+            <div className="w-64">
+              <label className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Cari Data</label>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari nama, mapel, atau nomor WhatsApp"
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
+              />
+            </div>
             <button
               onClick={() => {
                 setFlashMessage("");

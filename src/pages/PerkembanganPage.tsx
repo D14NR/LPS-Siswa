@@ -23,7 +23,7 @@ const PAGE_SIZE = 10;
 export function PerkembanganPage({ selectedStudent, perkembanganRows, pengajarRows }: PerkembanganPageProps) {
   const [page, setPage] = useState(1);
   const [dateFilter, setDateFilter] = useState("");
-  const [mapelFilter, setMapelFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const penguasaanSummary = useMemo(() => {
     const summary: Record<string, number> = {};
@@ -60,23 +60,26 @@ export function PerkembanganPage({ selectedStudent, perkembanganRows, pengajarRo
 
   const mapelOptions = useMemo(() => uniqueValues(pengajarRows, "Mata Pelajaran"), [pengajarRows]);
 
-  const filteredRows = useMemo(
-    () =>
-      sortRowsByDateDesc(
-        perkembanganRows.filter(
-          (row) =>
-            matchesDateFilter(getRowValue(row, "Tanggal"), dateFilter) &&
-            matchesTextFilter(getRowValue(row, "Mata Pelajaran"), mapelFilter)
-        )
-      ),
-    [perkembanganRows, dateFilter, mapelFilter]
-  );
+  const filteredRows = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return sortRowsByDateDesc(
+      perkembanganRows.filter((row) => {
+        const dateOk = matchesDateFilter(getRowValue(row, "Tanggal"), dateFilter);
+        if (!q) return dateOk;
+        const mapel = (getRowValue(row, "Mata Pelajaran") || "").toLowerCase();
+        const materi = (getRowValue(row, "Materi") || "").toLowerCase();
+        const penguasaan = (getRowValue(row, "Penguasaan") || "").toLowerCase();
+        const kondisi = (getRowValue(row, "Kondisi") || "").toLowerCase();
+        return dateOk && (mapel.includes(q) || materi.includes(q) || penguasaan.includes(q) || kondisi.includes(q));
+      })
+    );
+  }, [perkembanganRows, dateFilter, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
 
   useEffect(() => {
     setPage(1);
-  }, [perkembanganRows.length, dateFilter, mapelFilter]);
+  }, [perkembanganRows.length, dateFilter, searchQuery]);
 
   const pageRows = useMemo(
     () => filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
@@ -179,7 +182,7 @@ export function PerkembanganPage({ selectedStudent, perkembanganRows, pengajarRo
               <h2 className="text-lg font-semibold text-slate-900">Riwayat Perkembangan</h2>
               <p className="mt-1 text-sm text-slate-500">Menampilkan 10 data terbaru per halaman.</p>
             </div>
-            <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-3">
               <div>
                 <label className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Filter Tanggal</label>
                 <input
@@ -189,15 +192,16 @@ export function PerkembanganPage({ selectedStudent, perkembanganRows, pengajarRo
                   className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
                 />
               </div>
-              <SearchableSelect
-                label="Filter Mapel"
-                value={mapelFilter}
-                onChange={setMapelFilter}
-                options={mapelOptions}
-                placeholder="Cari mata pelajaran"
-                labelClassName="text-[10px] uppercase tracking-[0.3em] text-slate-500"
-                inputClassName="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
-              />
+              <div>
+                <label className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Cari Data</label>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cari mapel, materi, penguasaan, atau kondisi"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
+                />
+              </div>
             </div>
           </div>
         </div>

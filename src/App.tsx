@@ -16,8 +16,10 @@ import {
   sortRowsByDateDesc,
   type RowRecord,
   getDateFromLabel,
+  formatDateValue,
 } from "@/utils/dataHelpers";
-import { supabase } from "@/utils/supabaseClient";
+import { fetchAllDataSiswa } from "@/utils/permintaanService";
+import { supabase, supabaseKBM } from "@/utils/supabaseClient";
 import { convertPermintaanArrayToRowRecords, syncApprovedToJadwalKhusus } from "@/utils/permintaanService";
 
 const MENU_ITEMS = [
@@ -333,7 +335,6 @@ export function App() {
         );
 
         const [
-          biodataText,
           regulerText,
           tambahanText,
           presensiText,
@@ -344,7 +345,6 @@ export function App() {
           permintaanText,
           ...nilaiTexts
         ] = await Promise.all([
-          fetchSheetText(SHEETS.biodata.id, SHEETS.biodata.sheet),
           fetchSheetText(SHEETS.reguler.id, SHEETS.reguler.sheet),
           fetchSheetText(SHEETS.tambahan.id, SHEETS.tambahan.sheet),
           fetchSheetText(SHEETS.presensi.id, SHEETS.presensi.sheet),
@@ -356,11 +356,40 @@ export function App() {
           ...nilaiRequests,
         ]);
 
-        if (!biodataText) {
-          throw new Error("Gagal mengambil data biodata dari basis data.");
+        // Fetch biodata (data_siswa) from Supabase LPS via helper
+        try {
+          const siswaRows = await fetchAllDataSiswa();
+
+          const headers = [
+            "Nama",
+            "Nis",
+            "Tanggal Lahir",
+            "Asal Sekolah",
+            "Jenjang Studi",
+            "Kelompok Kelas",
+            "Cabang",
+            "No.whatsapp siswa",
+            "Email",
+          ];
+
+          const dataRows = (siswaRows || []).map((s: any) => [
+            s.nama ?? "",
+            s.nis ?? "",
+            s.tanggal_lahir ? formatDateValue(s.tanggal_lahir) : "",
+            s.asal_sekolah ?? "",
+            s.jenjang_studi ?? "",
+            s.kelompok_kelas ?? "",
+            s.cabang ?? "",
+            s.no_whatsapp_siswa ?? "",
+            s.email ?? "",
+          ]);
+
+          setBiodata({ headers, data: dataRows });
+        } catch (err) {
+          console.error(err);
+          throw err instanceof Error ? err : new Error("Gagal mengambil data biodata dari basis data.");
         }
 
-        setBiodata(formatRows(parseCSV(biodataText)));
         const parsedRegulerSheet = formatRows(parseCSV(regulerText || ""));
         console.debug("Sheet: reguler parsed", parsedRegulerSheet.headers.length, "headers", parsedRegulerSheet.data.length, "rows");
         if (!regulerText) console.warn("⚠️ Sheet Jadwal_Siswa fetch returned null or empty");
@@ -369,13 +398,94 @@ export function App() {
         console.debug("Sheet: tambahan parsed", parsedTambahanSheet.headers.length, "headers", parsedTambahanSheet.data.length, "rows");
         if (!tambahanText) console.warn("⚠️ Sheet Jadwal_Tambahan fetch returned null or empty");
         setJadwalTambahan(parsedTambahanSheet);
-        setPresensi(formatRows(parseCSV(presensiText || "")));
-        setPerkembangan(formatRows(parseCSV(perkembanganText || "")));
-        setPelayanan(formatRows(parseCSV(pelayananText || "")));
+        // Load presensi from Supabase `perkembangan_belajar` (gunakan kolom kehadiran)
+        try {
+          const { data: presensiData, error: presensiError } = await supabase
+            .from("perkembangan_belajar")
+            .select("*")
+            .order("tanggal", { ascending: false });
+
+          if (presensiError) {
+            console.warn("⚠️ Supabase presensi fetch error:", presensiError);
+            setPresensi(formatRows(parseCSV(presensiText || "")));
+          } else if (Array.isArray(presensiData)) {
+            const headers = ["Tanggal", "Mata Pelajaran", "Status", "Cabang"];
+            const dataRows = presensiData.map((r: any) => [
+              r.tanggal ? formatDateValue(r.tanggal) : "",
+              r.mata_pelajaran ?? "",
+              r.kehadiran ?? "",
+              r.cabang ?? "",
+            ]);
+            setPresensi({ headers, data: dataRows });
+          } else {
+            setPresensi(formatRows(parseCSV(presensiText || "")));
+          }
+        } catch (e) {
+          console.error("❌ Error fetching presensi from Supabase:", e);
+          setPresensi(formatRows(parseCSV(presensiText || "")));
+        }
+        // Load perkembangan from Supabase `perkembangan_belajar` (use schema provided)
+        try {
+          const { data: perkembanganData, error: perkembanganError } = await supabase
+            .from("perkembangan_belajar")
+            .select("*")
+            .order("tanggal", { ascending: false });
+
+          if (perkembanganError) {
+            console.warn("⚠️ Supabase perkembangan fetch error:", perkembanganError);
+            setPerkembangan(formatRows(parseCSV(perkembanganText || "")));
+          } else if (Array.isArray(perkembanganData)) {
+            const headers = ["Tanggal", "Mata Pelajaran", "Materi", "Penguasaan", "Penjelasan", "Kondisi", "Catatan", "Cabang"];
+            const dataRows = perkembanganData.map((r: any) => [
+              r.tanggal ? formatDateValue(r.tanggal) : "",
+              r.mata_pelajaran ?? "",
+              r.materi_sub_bab ?? "",
+              r.prosen_penguasaan != null ? `${Number(r.prosen_penguasaan).toFixed(2)}%` : "",
+              r.prosen_penjelasan != null ? `${Number(r.prosen_penjelasan).toFixed(2)}%` : "",
+              r.prosen_kondisi != null ? `${Number(r.prosen_kondisi).toFixed(2)}%` : "",
+              r.catatan_pengajar ?? "",
+              r.cabang ?? "",
+            ]);
+            setPerkembangan({ headers, data: dataRows });
+          } else {
+            setPerkembangan(formatRows(parseCSV(perkembanganText || "")));
+          }
+        } catch (e) {
+          console.error("❌ Error fetching perkembangan from Supabase:", e);
+          setPerkembangan(formatRows(parseCSV(perkembanganText || "")));
+        }
+        // Load pelayanan (tambahan_pelayanan) from Supabase
+        try {
+          const { data: tambahanData, error: tambahanError } = await supabase
+            .from("tambahan_pelayanan")
+            .select("*")
+            .order("tanggal", { ascending: false });
+
+          if (tambahanError) {
+            console.warn("⚠️ Supabase tambahan_pelayanan fetch error:", tambahanError);
+            setPelayanan(formatRows(parseCSV(pelayananText || "")));
+          } else if (Array.isArray(tambahanData)) {
+            const headers = ["Tanggal", "Mata Pelajaran", "Materi", "Durasi", "Pengajar", "Cabang"];
+            const dataRows = tambahanData.map((r: any) => [
+              r.tanggal ? formatDateValue(r.tanggal) : "",
+              r.mata_pelajaran ?? "",
+              r.materi_sub_bab ?? "",
+              r.durasi ?? "",
+              r.pengajar ?? "",
+              r.cabang ?? "",
+            ]);
+            setPelayanan({ headers, data: dataRows });
+          } else {
+            setPelayanan(formatRows(parseCSV(pelayananText || "")));
+          }
+        } catch (e) {
+          console.error("❌ Error fetching tambahan_pelayanan from Supabase:", e);
+          setPelayanan(formatRows(parseCSV(pelayananText || "")));
+        }
         
         // Fetch pengajar from Supabase table `pengajar`
         try {
-          const { data: pengajarData, error: pengajarError } = await supabase
+          const { data: pengajarData, error: pengajarError } = await supabaseKBM
             .from("pengajar")
             .select("*")
             .order("nama", { ascending: true });
@@ -385,11 +495,11 @@ export function App() {
             setPengajar(formatRows(parseCSV(pengajarText || "")));
           } else if (Array.isArray(pengajarData) && pengajarData.length > 0) {
             console.log("✓ Supabase: pengajar rows:", pengajarData.length);
-            // Convert to table format with headers: ["Nama", "Kode Pengajar", "No. Whatsapp"]
-            const headers = ["Nama", "Kode Pengajar", "No. Whatsapp"];
+            // Convert to table format with headers: ["Nama", "Mata Pelajaran", "No. Whatsapp"] per KBM schema
+            const headers = ["Nama", "Mata Pelajaran", "No. Whatsapp"];
             const dataRows = pengajarData.map((row: any) => [
               row.nama || "",
-              row.kode_pengajar || "",
+              row.bidang_studi || "",
               row.no_whatsapp || ""
             ]);
             setPengajar({ headers, data: dataRows });
@@ -406,7 +516,7 @@ export function App() {
         
         // Fetch waPengajar from Supabase table `pengajar`
         try {
-          const { data: waPengajarData, error: waPengajarError } = await supabase
+          const { data: waPengajarData, error: waPengajarError } = await supabaseKBM
             .from("pengajar")
             .select("nama, bidang_studi, no_whatsapp")
             .order("nama", { ascending: true });
@@ -477,6 +587,97 @@ export function App() {
         });
         setNilaiTes(nilaiData);
 
+        // Attempt to fetch nilai tables from Supabase and override CSV datasets when available
+        try {
+          // 1) nilai_snbt_utbk -> map to "Nilai UTBK"
+          const { data: snbtData, error: snbtError } = await supabase
+            .from("nilai_snbt_utbk")
+            .select("*")
+            .order("tanggal", { ascending: false });
+          if (!snbtError && Array.isArray(snbtData) && snbtData.length > 0) {
+            const headers = ["Tanggal", "Jenis Tes", "PU", "PPU", "PBM", "PK", "LIB", "LING", "PM", "Rerata", "Total", "Cabang"];
+            const dataRows = snbtData.map((r: any) => [
+              r.tanggal ? formatDateValue(r.tanggal) : "",
+              r.jenis_tes ?? "",
+              r.pu != null ? String(r.pu) : "",
+              r.ppu != null ? String(r.ppu) : "",
+              r.pbm != null ? String(r.pbm) : "",
+              r.pk != null ? String(r.pk) : "",
+              r.lib != null ? String(r.lib) : "",
+              r.ling != null ? String(r.ling) : "",
+              r.pm != null ? String(r.pm) : "",
+              r.rerata != null ? String(r.rerata) : "",
+              r.total != null ? String(r.total) : "",
+              r.cabang ?? "",
+            ]);
+            nilaiData["Nilai UTBK"] = { headers, data: dataRows };
+          }
+
+          // 2) nilai_evaluasi -> map to "Nilai EVALUASI"
+          const { data: evalData, error: evalError } = await supabase
+            .from("nilai_evaluasi")
+            .select("*")
+            .order("tanggal", { ascending: false });
+          if (!evalError && Array.isArray(evalData) && evalData.length > 0) {
+            const headers = ["Tanggal", "Mata Pelajaran", "Sub Bab", "Nilai", "Cabang"];
+            const dataRows = evalData.map((r: any) => [
+              r.tanggal ? formatDateValue(r.tanggal) : "",
+              r.mata_pelajaran ?? "",
+              r.sub_bab ?? "",
+              r.nilai != null ? String(r.nilai) : "",
+              r.cabang ?? "",
+            ]);
+            nilaiData["Nilai EVALUASI"] = { headers, data: dataRows };
+          }
+
+          // 3) nilai_standar -> try to split into TKA datasets
+          const { data: standarData, error: standarError } = await supabase
+            .from("nilai_standar")
+            .select("*")
+            .order("tanggal", { ascending: false });
+          if (!standarError && Array.isArray(standarData) && standarData.length > 0) {
+            // For each NILAI_SHEETS label that looks like "Nilai TKA ...", filter by jenis_tes containing the suffix
+            for (const item of NILAI_SHEETS) {
+              if (!item.label.startsWith("Nilai TKA")) continue;
+              const term = item.label.replace(/^Nilai\s*/i, "").trim(); // e.g. "TKA SMA"
+              const filtered = standarData.filter((r: any) => {
+                const jt = (r.jenis_tes ?? "").toString().toLowerCase();
+                return jt.includes(term.toLowerCase());
+              });
+              if (filtered.length > 0) {
+                const headers = ["Tanggal", "Jenis Tes", "Mata Pelajaran", "Nilai", "Cabang"];
+                const dataRows = filtered.map((r: any) => [
+                  r.tanggal ? formatDateValue(r.tanggal) : "",
+                  r.jenis_tes ?? "",
+                  r.mata_pelajaran ?? "",
+                  r.nilai != null ? String(r.nilai) : "",
+                  r.cabang ?? "",
+                ]);
+                nilaiData[item.label] = { headers, data: dataRows };
+              }
+            }
+            // If none of the TKA datasets were filled, place the whole standarData into the first TKA label as fallback
+            const tkaLabels = NILAI_SHEETS.filter((s) => s.label.startsWith("Nilai TKA")).map((s) => s.label);
+            const anyTkaFilled = tkaLabels.some((lbl) => Array.isArray(nilaiData[lbl]?.data) && nilaiData[lbl].data.length > 0);
+            if (!anyTkaFilled && tkaLabels.length > 0) {
+              const headers = ["Tanggal", "Jenis Tes", "Mata Pelajaran", "Nilai", "Cabang"];
+              const dataRows = standarData.map((r: any) => [
+                r.tanggal ? formatDateValue(r.tanggal) : "",
+                r.jenis_tes ?? "",
+                r.mata_pelajaran ?? "",
+                r.nilai != null ? String(r.nilai) : "",
+                r.cabang ?? "",
+              ]);
+              nilaiData[tkaLabels[0]] = { headers, data: dataRows };
+            }
+          }
+
+          // Commit overrides
+          setNilaiTes({ ...nilaiData });
+        } catch (e) {
+          console.warn("⚠️ Error fetching nilai tables from Supabase:", e);
+        }
+
         // Fetch mata_pelajaran mapping to expand subject codes
         const mataMap = new Map<string, string>();
         try {
@@ -503,7 +704,7 @@ export function App() {
         // Transform normalized rows (one per schedule entry) into the
         // CSV-like table shape: headers + data rows grouped by (Cabang, Kelompok Kelas).
         try {
-          const { data: supaRows, error: supaError } = await supabase
+          const { data: supaRows, error: supaError } = await supabaseKBM
             .from("jadwal_reguler")
             .select("*")
             .order("class_order", { ascending: true });
@@ -590,7 +791,7 @@ export function App() {
 
         // Attempt to fetch "khusus" (jadwal tambahan) from Supabase table `jadwal_khusus`.
         try {
-          const { data: supaKhusus, error: supaKhususError } = await supabase
+          const { data: supaKhusus, error: supaKhususError } = await supabaseKBM
             .from("jadwal_khusus")
             .select("*")
             .order("class_order", { ascending: true });
@@ -684,7 +885,7 @@ export function App() {
     // Also try fetching pengajar contact list from Supabase and override waPengajar
     (async () => {
       try {
-        const { data: supaPengajar, error } = await supabase.from("pengajar").select("*").order("nama", { ascending: true });
+        const { data: supaPengajar, error } = await supabaseKBM.from("pengajar").select("*").order("nama", { ascending: true });
         if (!error && Array.isArray(supaPengajar) && supaPengajar.length > 0) {
           const headers = ["Pengajar", "Mata Pelajaran", "No. Whatsapp", "Email", "Domisili", "Kode Pengajar"];
           const dataRows = supaPengajar.map((r: any) => [

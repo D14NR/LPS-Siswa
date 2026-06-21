@@ -13,7 +13,7 @@ import {
   sortRowsByDateDesc,
   uniqueValues,
 } from "@/utils/dataHelpers";
-import { postAppScript } from "@/utils/appScript";
+import { supabase } from "@/utils/supabaseClient";
 
 type PresensiPageProps = {
   selectedStudent: RowRecord | null;
@@ -56,7 +56,7 @@ export function PresensiPage({
   const [submitState, setSubmitState] = useState({ loading: false, error: "", success: "" });
   const [flashMessage, setFlashMessage] = useState("");
   const [dateFilter, setDateFilter] = useState("");
-  const [mapelFilter, setMapelFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const mapelOptions = useMemo(
     () =>
@@ -66,23 +66,25 @@ export function PresensiPage({
     [mataPelajaranOptions, pengajarRows]
   );
 
-  const filteredRows = useMemo(
-    () =>
-      sortRowsByDateDesc(
-        presensiRows.filter(
-          (row) =>
-            matchesDateFilter(getRowValue(row, "Tanggal"), dateFilter) &&
-            matchesTextFilter(getRowValue(row, "Mata Pelajaran"), mapelFilter)
-        )
-      ),
-    [presensiRows, dateFilter, mapelFilter]
-  );
+  const filteredRows = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return sortRowsByDateDesc(
+      presensiRows.filter((row) => {
+        const dateOk = matchesDateFilter(getRowValue(row, "Tanggal"), dateFilter);
+        if (!q) return dateOk;
+        const mapel = (getRowValue(row, "Mata Pelajaran") || "").toLowerCase();
+        const status = (getRowValue(row, "Status") || "").toLowerCase();
+        const cabang = (getRowValue(row, "Cabang") || "").toLowerCase();
+        return dateOk && (mapel.includes(q) || status.includes(q) || cabang.includes(q));
+      })
+    );
+  }, [presensiRows, dateFilter, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
 
   useEffect(() => {
     setPage(1);
-  }, [presensiRows.length, dateFilter, mapelFilter]);
+  }, [presensiRows.length, dateFilter, searchQuery]);
 
   const pageRows = useMemo(
     () => filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
@@ -123,18 +125,21 @@ export function PresensiPage({
     }
     try {
       setSubmitState({ loading: true, error: "", success: "" });
-      await postAppScript("presensi", {
+      const payload = {
         nis: getRowValue(selectedStudent, "Nis"),
         nama: getRowValue(selectedStudent, "Nama"),
         tanggal: formatDateForStorage(resolvedTanggal),
         kelas:
           getRowValue(selectedStudent, "Kelompok Kelas") ||
           getRowValue(selectedStudent, "Kelompok") ||
-          getRowValue(selectedStudent, "Kelas"),
-        mataPelajaran: resolvedMapel,
+          getRowValue(selectedStudent, "Kelas") || null,
+        mata_pelajaran: resolvedMapel,
         status: formState.status,
-        cabang: getRowValue(selectedStudent, "Cabang"),
-      });
+        cabang: getRowValue(selectedStudent, "Cabang") || null,
+      };
+
+      const { error } = await supabase.from("presensi").insert([payload]);
+      if (error) throw new Error(error.message || "Gagal menyimpan presensi.");
       setSubmitState({ loading: false, error: "", success: "Presensi berhasil disimpan." });
       setFlashMessage("Presensi berhasil disimpan.");
       setIsModalOpen(false);
@@ -235,15 +240,16 @@ export function PresensiPage({
                   className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
                 />
               </div>
-              <SearchableSelect
-                label="Filter Mapel"
-                value={mapelFilter}
-                onChange={setMapelFilter}
-                options={mapelOptions}
-                placeholder="Cari mata pelajaran"
-                labelClassName="text-[10px] uppercase tracking-[0.3em] text-slate-500"
-                inputClassName="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
-              />
+              <div>
+                <label className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Cari Data</label>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cari mapel, status, atau cabang"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
+                />
+              </div>
             </div>
           </div>
         </div>

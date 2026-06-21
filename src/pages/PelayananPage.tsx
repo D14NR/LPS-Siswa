@@ -13,7 +13,7 @@ import {
   sortRowsByDateDesc,
   uniqueValues,
 } from "@/utils/dataHelpers";
-import { postAppScript } from "@/utils/appScript";
+import { supabase } from "@/utils/supabaseClient";
 
 type PelayananPageProps = {
   selectedStudent: RowRecord | null;
@@ -52,7 +52,7 @@ export function PelayananPage({
   const [submitState, setSubmitState] = useState({ loading: false, error: "", success: "" });
   const [flashMessage, setFlashMessage] = useState("");
   const [dateFilter, setDateFilter] = useState("");
-  const [mapelFilter, setMapelFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const mapelOptions = useMemo(
     () =>
@@ -64,23 +64,25 @@ export function PelayananPage({
 
   const pengajarOptions = useMemo(() => uniqueValues(pengajarRows, "Pengajar"), [pengajarRows]);
 
-  const filteredRows = useMemo(
-    () =>
-      sortRowsByDateDesc(
-        pelayananRows.filter(
-          (row) =>
-            matchesDateFilter(getRowValue(row, "Tanggal"), dateFilter) &&
-            matchesTextFilter(getRowValue(row, "Mata Pelajaran"), mapelFilter)
-        )
-      ),
-    [pelayananRows, dateFilter, mapelFilter]
-  );
+  const filteredRows = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return sortRowsByDateDesc(
+      pelayananRows.filter((row) => {
+        const dateOk = matchesDateFilter(getRowValue(row, "Tanggal"), dateFilter);
+        if (!q) return dateOk;
+        const mapel = (getRowValue(row, "Mata Pelajaran") || "").toLowerCase();
+        const materi = (getRowValue(row, "Materi") || "").toLowerCase();
+        const pengajar = (getRowValue(row, "Pengajar") || "").toLowerCase();
+        return dateOk && (mapel.includes(q) || materi.includes(q) || pengajar.includes(q));
+      })
+    );
+  }, [pelayananRows, dateFilter, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
 
   useEffect(() => {
     setPage(1);
-  }, [pelayananRows.length, dateFilter, mapelFilter]);
+  }, [pelayananRows.length, dateFilter, searchQuery]);
 
   const pageRows = useMemo(
     () => filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
@@ -106,16 +108,19 @@ export function PelayananPage({
     }
     try {
       setSubmitState({ loading: true, error: "", success: "" });
-      await postAppScript("pelayanan", {
+      const payload = {
         nis: getRowValue(selectedStudent, "Nis"),
         nama: getRowValue(selectedStudent, "Nama"),
         tanggal: formatDateForStorage(formState.tanggal),
-        mataPelajaran: formState.mataPelajaran,
-        materi: formState.materi,
-        durasi: formState.durasi,
-        pengajar: formState.pengajar,
-        cabang: getRowValue(selectedStudent, "Cabang"),
-      });
+        mata_pelajaran: formState.mataPelajaran,
+        materi: formState.materi || null,
+        durasi: formState.durasi || null,
+        pengajar: formState.pengajar || null,
+        cabang: getRowValue(selectedStudent, "Cabang") || null,
+      };
+
+      const { error } = await supabase.from("pelayanan").insert([payload]);
+      if (error) throw new Error(error.message || "Gagal menyimpan pelayanan.");
       setSubmitState({ loading: false, error: "", success: "Pelayanan berhasil disimpan." });
       setFlashMessage("Pelayanan berhasil disimpan.");
       setIsModalOpen(false);
@@ -199,7 +204,7 @@ export function PelayananPage({
               <h2 className="text-lg font-semibold text-slate-900">Riwayat Pelayanan/Jam Tambahan</h2>
               <p className="mt-1 text-sm text-slate-500">Menampilkan 10 data terbaru per halaman.</p>
             </div>
-            <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-3">
               <div>
                 <label className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Filter Tanggal</label>
                 <input
@@ -209,15 +214,16 @@ export function PelayananPage({
                   className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
                 />
               </div>
-              <SearchableSelect
-                label="Filter Mapel"
-                value={mapelFilter}
-                onChange={setMapelFilter}
-                options={mapelOptions}
-                placeholder="Cari mata pelajaran"
-                labelClassName="text-[10px] uppercase tracking-[0.3em] text-slate-500"
-                inputClassName="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
-              />
+              <div>
+                <label className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Cari Data</label>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cari mapel, materi, atau pengajar"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
+                />
+              </div>
             </div>
           </div>
         </div>

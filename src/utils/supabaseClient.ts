@@ -1,22 +1,36 @@
 import { createClient } from "@supabase/supabase-js";
 
-const rawUrl = import.meta.env.VITE_SUPABASE_URL || "";
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+const rawLps = import.meta.env.VITE_SUPABASE_LPS || import.meta.env.VITE_SUPABASE_URL || "";
+const anonLps = import.meta.env.VITE_SUPABASE_ANON_KEY_LPS || import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 
-// Accept either a full URL (`https://<ref>.supabase.co`) or just the project ref.
-const supabaseUrl = rawUrl.startsWith("http")
-	? rawUrl
-	: rawUrl
-	? `https://${rawUrl}.supabase.co`
-	: "";
+const rawKbm = import.meta.env.VITE_SUPABASE_URL_KBM || import.meta.env.VITE_SUPABASE_KBM || "";
+const anonKbm = import.meta.env.VITE_SUPABASE_ANON_KEY_KBM || import.meta.env.VITE_SUPABASE_ANON_KEY_KBM || "";
 
-if (!supabaseUrl) {
-	console.error("⚠️ Supabase URL is not configured. Check that VITE_SUPABASE_URL is set in .env file");
+const resolveUrl = (raw: string) => {
+	if (!raw) return "";
+	return raw.startsWith("http") ? raw : `https://${raw}.supabase.co`;
+};
+
+const lpsUrl = resolveUrl(rawLps);
+const kbmUrl = resolveUrl(rawKbm);
+
+if (!lpsUrl) {
+	console.error("⚠️ Supabase LPS URL is not configured. Set VITE_SUPABASE_LPS in .env");
 }
-if (!supabaseAnonKey) {
-	console.error("⚠️ Supabase Anon Key is not configured. Check that VITE_SUPABASE_ANON_KEY is set in .env file");
+if (!anonLps) {
+	console.error("⚠️ Supabase LPS Anon Key is not configured. Set VITE_SUPABASE_ANON_KEY_LPS in .env");
 }
 
-export const supabase = createClient(supabaseUrl || "https://dummy.supabase.co", supabaseAnonKey || "dummy-key");
+if (!kbmUrl) {
+	console.warn("⚠️ Supabase KBM URL not configured. Set VITE_SUPABASE_URL_KBM if needed");
+}
+if (!anonKbm) {
+	console.warn("⚠️ Supabase KBM Anon Key not configured. Set VITE_SUPABASE_ANON_KEY_KBM if needed");
+}
 
+export const supabaseLPS = createClient(lpsUrl || "https://dummy.supabase.co", anonLps || "dummy-key");
+export const supabaseKBM = createClient(kbmUrl || "https://dummy.supabase.co", anonKbm || "dummy-key");
+
+// Default export stays as LPS client for existing code paths that import `supabase`.
+export const supabase = supabaseLPS;
 export default supabase;
