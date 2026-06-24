@@ -13,6 +13,7 @@ import {
   sortRowsByDateDesc,
   uniqueValues,
 } from "@/utils/dataHelpers";
+import { DonutChart } from "@/components/Charts";
 import { supabase } from "@/utils/supabaseClient";
 
 type PresensiPageProps = {
@@ -184,31 +185,16 @@ export function PresensiPage({
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
           <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">Grafik Presensi</h3>
-          <div className="mt-4 space-y-4">
-            {([
-              { label: "Hadir", value: statusSummary.summary.Hadir, color: "bg-emerald-500" },
-              { label: "Sakit", value: statusSummary.summary.Sakit, color: "bg-rose-500" },
-              { label: "Izin", value: statusSummary.summary.Izin, color: "bg-amber-500" },
-              { label: "Alpha", value: statusSummary.summary.Alpha, color: "bg-slate-500" },
-            ] as const).map((item) => {
-              const percent = statusSummary.total
-                ? Math.round((item.value / statusSummary.total) * 100)
-                : 0;
-              return (
-                <div key={item.label}>
-                  <div className="flex items-center justify-between text-xs text-slate-600">
-                    <span>{item.label}</span>
-                    <span>{item.value} kali</span>
-                  </div>
-                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className={`h-full ${item.color}`}
-                      style={{ width: `${percent}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+          <div className="mt-4">
+            <DonutChart
+              title="Distribusi Status Presensi"
+              data={[
+                { name: "Hadir", value: statusSummary.summary.Hadir },
+                { name: "Sakit", value: statusSummary.summary.Sakit },
+                { name: "Izin", value: statusSummary.summary.Izin },
+                { name: "Alpha", value: statusSummary.summary.Alpha },
+              ]}
+            />
           </div>
         </div>
         <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">

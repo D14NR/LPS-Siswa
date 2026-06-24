@@ -9,6 +9,7 @@ import {
   normalizeMatch,
   sortRowsByDateDesc,
 } from "@/utils/dataHelpers";
+import { RadarChart } from "@/components/Charts";
 
 type NilaiDataset = {
   key: string;
@@ -79,10 +80,25 @@ export function NilaiPage({ selectedStudent, datasets }: NilaiPageProps) {
     const delta = latest && previous ? latest - previous : 0;
     return { total, avg, max, min, latest, previous, delta };
   }, [orderedRows]);
+
   const displayHeaders = useMemo(
     () => headers.filter((header) => header && normalizeMatch(header) !== "timestamp"),
     [headers]
   );
+
+  const radarData = useMemo(() => {
+    const headersToShow = displayHeaders.slice(0, 6);
+    return headersToShow.map((header) => {
+      const values: number[] = [];
+      rows.forEach((row) => {
+        const raw = getRowValue(row, header) || "";
+        const parsed = parseScore(String(raw));
+        if (Number.isFinite(parsed)) values.push(parsed);
+      });
+      const avg = values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0;
+      return { subject: header, A: avg };
+    });
+  }, [rows, displayHeaders]);
   const [page, setPage] = useState(1);
   const [dateFilter, setDateFilter] = useState("");
   const filteredRows = useMemo(
@@ -186,6 +202,10 @@ export function NilaiPage({ selectedStudent, datasets }: NilaiPageProps) {
             Pantau tren peningkatan dengan membandingkan tes terakhir terhadap tes sebelumnya.
           </p>
         </div>
+      </div>
+
+      <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
+        <RadarChart title="Distribusi Rata-rata per Kolom" data={radarData} />
       </div>
 
       <div className="rounded-[32px] border border-slate-200 bg-white/90 p-4 shadow-lg shadow-red-100">

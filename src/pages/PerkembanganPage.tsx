@@ -11,6 +11,7 @@ import {
   sortRowsByDateDesc,
   uniqueValues,
 } from "@/utils/dataHelpers";
+import { DonutChart, HorizontalBarChart, MultiLineChart } from "@/components/Charts";
 
 type PerkembanganPageProps = {
   selectedStudent: RowRecord | null;
@@ -94,71 +95,110 @@ export function PerkembanganPage({ selectedStudent, perkembanganRows, pengajarRo
     return <EmptyState message="Belum ada data perkembangan untuk siswa ini." />;
   }
 
+  const trendData = (() => {
+    const normalize = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+    const parsePercent = (v: string) => {
+      if (!v && v !== 0) return NaN;
+      const s = String(v).trim().replace(/%/g, "");
+      if (!s) return NaN;
+      let cleaned = s.replace(/[^0-9.,-]/g, "");
+      if (cleaned.includes(",") && cleaned.includes(".")) {
+        if (cleaned.lastIndexOf(",") > cleaned.lastIndexOf(".")) {
+          cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+        } else {
+          cleaned = cleaned.replace(/,/g, "");
+        }
+      } else if (cleaned.includes(",")) {
+        cleaned = cleaned.replace(/\./g, "").replace(/,/, ".");
+      } else {
+        cleaned = cleaned.replace(/,/g, "");
+      }
+      const n = Number(cleaned);
+      return Number.isFinite(n) ? n : NaN;
+    };
+
+    const findPercentInRow = (row: any, keywords: string[]) => {
+      for (const k of Object.keys(row)) {
+        const nk = normalize(k);
+        if (keywords.every((kw) => nk.includes(kw))) {
+          const v = parsePercent(row[k]);
+          if (Number.isFinite(v)) return v;
+        }
+      }
+      const main = keywords[keywords.length - 1];
+      for (const k of Object.keys(row)) {
+        const nk = normalize(k);
+        if (nk.includes(main)) {
+          const v = parsePercent(row[k]);
+          if (Number.isFinite(v)) return v;
+        }
+      }
+      return NaN;
+    };
+
+    const accByDate: any = {};
+    perkembanganRows.forEach((row) => {
+      const date = formatDateValue(getRowValue(row, "Tanggal")) || "-";
+      accByDate[date] = accByDate[date] || { Penguasaan: { sum: 0, count: 0 }, Penjelasan: { sum: 0, count: 0 }, Kondisi: { sum: 0, count: 0 } };
+
+      const pVal = findPercentInRow(row, ["prosen", "penguasaan"]);
+      const penVal = findPercentInRow(row, ["prosen", "penjelasan"]);
+      const kVal = findPercentInRow(row, ["prosen", "kondisi"]);
+
+      if (Number.isFinite(pVal)) { accByDate[date].Penguasaan.sum += pVal; accByDate[date].Penguasaan.count += 1; }
+      if (Number.isFinite(penVal)) { accByDate[date].Penjelasan.sum += penVal; accByDate[date].Penjelasan.count += 1; }
+      if (Number.isFinite(kVal)) { accByDate[date].Kondisi.sum += kVal; accByDate[date].Kondisi.count += 1; }
+    });
+
+    const rows = Object.entries(accByDate)
+      .map(([name, v]) => ({
+        name,
+        Penguasaan: v.Penguasaan.count ? Math.round(v.Penguasaan.sum / v.Penguasaan.count) : 0,
+        Penjelasan: v.Penjelasan.count ? Math.round(v.Penjelasan.sum / v.Penjelasan.count) : 0,
+        Kondisi: v.Kondisi.count ? Math.round(v.Kondisi.sum / v.Kondisi.count) : 0,
+      }))
+      .sort((a, b) => new Date(a.name).getTime() - new Date(b.name).getTime())
+      .slice(-12);
+    return rows;
+  })();
+
   return (
     <section className="grid gap-6">
+      <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
+        <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">Tren Catatan Perkembangan</h3>
+        <div className="mt-4">
+          <MultiLineChart
+            title="Tren Persentase Penguasaan / Penjelasan / Kondisi"
+            series={[
+              { key: "Penguasaan", color: "#ef4444", label: "Penguasaan" },
+              { key: "Penjelasan", color: "#f59e0b", label: "Penjelasan" },
+              { key: "Kondisi", color: "#10b981", label: "Kondisi" },
+            ]}
+            data={trendData}
+          />
+        </div>
+      </div>
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
-          <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">Grafik Penguasaan Materi</h3>
-          <div className="mt-4 space-y-4">
-            {penguasaanSummary.entries.slice(0, 4).map(([label, count]) => {
-              const percent = penguasaanSummary.total
-                ? Math.round((count / penguasaanSummary.total) * 100)
-                : 0;
-              return (
-                <div key={label}>
-                  <div className="flex items-center justify-between text-xs text-slate-600">
-                    <span>{label}</span>
-                    <span>{count} catatan</span>
-                  </div>
-                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full bg-red-500" style={{ width: `${percent}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <HorizontalBarChart
+            title="Grafik Penguasaan Materi"
+            data={penguasaanSummary.entries.slice(0, 6).map(([name, value]) => ({ name, value }))}
+          />
         </div>
         <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
-          <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">Grafik Penjelasan Materi</h3>
-          <div className="mt-4 space-y-4">
-            {penjelasanSummary.entries.slice(0, 4).map(([label, count]) => {
-              const percent = penjelasanSummary.total
-                ? Math.round((count / penjelasanSummary.total) * 100)
-                : 0;
-              return (
-                <div key={label}>
-                  <div className="flex items-center justify-between text-xs text-slate-600">
-                    <span>{label}</span>
-                    <span>{count} catatan</span>
-                  </div>
-                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full bg-amber-500" style={{ width: `${percent}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <HorizontalBarChart
+            title="Grafik Penjelasan Materi"
+            data={penjelasanSummary.entries.slice(0, 6).map(([name, value]) => ({ name, value }))}
+            colors={["#f59e0b", "#ef4444", "#3b82f6", "#10b981"]}
+          />
         </div>
         <div className="rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-lg shadow-red-100">
-          <h3 className="text-sm uppercase tracking-[0.3em] text-slate-500">Grafik Kondisi Belajar</h3>
-          <div className="mt-4 space-y-4">
-            {kondisiSummary.entries.slice(0, 4).map(([label, count]) => {
-              const percent = kondisiSummary.total
-                ? Math.round((count / kondisiSummary.total) * 100)
-                : 0;
-              return (
-                <div key={label}>
-                  <div className="flex items-center justify-between text-xs text-slate-600">
-                    <span>{label}</span>
-                    <span>{count} catatan</span>
-                  </div>
-                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full bg-emerald-500" style={{ width: `${percent}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <HorizontalBarChart
+            title="Grafik Kondisi Belajar"
+            data={kondisiSummary.entries.slice(0, 6).map(([name, value]) => ({ name, value }))}
+            colors={["#10b981", "#34d399", "#60a5fa", "#f97316"]}
+          />
         </div>
       </div>
 
