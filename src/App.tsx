@@ -162,6 +162,26 @@ const parseDate = (value: string) => {
   return alt ?? null;
 };
 
+const normalizeComparableText = (value: string) =>
+  (value ?? "").toString().trim().toLowerCase().replace(/\s+/g, "");
+
+const valuesMatch = (left: string, right: string) => {
+  const a = normalizeComparableText(left);
+  const b = normalizeComparableText(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  return a.includes(b) || b.includes(a);
+};
+
+const splitClassValues = (value: string) =>
+  (value || "")
+    .split(/,|;/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const hasMatchingClass = (rowValue: string, studentClassValues: string[]) =>
+  studentClassValues.some((studentClass) => valuesMatch(rowValue, studentClass));
+
 const formatDateHeader = (date: Date) => {
   const day = String(date.getDate()).padStart(2, "0");
   const month = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"][date.getMonth()];
@@ -260,6 +280,17 @@ export function App() {
   );
   const [refreshToken, setRefreshToken] = useState(0);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+
+  const refreshData = () => {
+    setLoading(true);
+    setRefreshToken((prev) => prev + 1);
+  };
+
+  const handleMenuChange = (nextMenu: string) => {
+    setActiveMenu(nextMenu);
+    setIsSidebarOpen(false);
+    refreshData();
+  };
 
   // Refetch permintaan data from Supabase every 30 seconds
   const refetchPermintaan = async () => {
@@ -1228,10 +1259,7 @@ export function App() {
     const kelasRaw = kelasIndex >= 0 ? studentRow[kelasIndex] : "";
     const asalSekolah = asalSekolahIndex >= 0 ? studentRow[asalSekolahIndex] : "";
     const studentCabang = cabangIndex >= 0 ? studentRow[cabangIndex] : "";
-    const kelasList = kelasRaw
-      .split(/,|;/)
-      .map((item) => item.trim())
-      .filter(Boolean);
+    const kelasList = splitClassValues(kelasRaw);
 
     console.log("🔍 studentSchedule debug:", {
       studentNIS: activeNis,
@@ -1259,8 +1287,9 @@ export function App() {
 
     const regulerRow = kelasList.length
       ? selectRowWithSchedule(jadwalReguler, (row, cabangIdx, kelasIdx) => {
-          const kelasMatch = kelasIdx >= 0 ? kelasList.includes(row[kelasIdx]) : false;
-          const cabangMatch = !studentCabang || cabangIdx === -1 || row[cabangIdx] === studentCabang;
+          const rowKelasValue = kelasIdx >= 0 ? row[kelasIdx] : "";
+          const kelasMatch = hasMatchingClass(rowKelasValue, kelasList);
+          const cabangMatch = !studentCabang || cabangIdx === -1 || valuesMatch(row[cabangIdx] ?? "", studentCabang);
           return kelasMatch && cabangMatch;
         })
       : null;
@@ -1317,7 +1346,7 @@ export function App() {
     const cabangIndex = getHeaderIndex(biodata.headers, "Cabang");
     const kelasRaw = kelasIndex >= 0 ? studentRow[kelasIndex] : "";
     const studentCabang = cabangIndex >= 0 ? studentRow[cabangIndex] : "";
-    const kelasList = kelasRaw.split(/,|;/).map((k) => k.trim()).filter(Boolean);
+    const kelasList = splitClassValues(kelasRaw);
     const kelasIdx = getHeaderIndex(jadwalReguler.headers, "Kelompok Kelas");
     const cabangIdx = getHeaderIndex(jadwalReguler.headers, "Cabang");
     if (kelasIdx === -1 || !kelasList.length) return [];
@@ -1325,9 +1354,9 @@ export function App() {
       .filter((row) => {
         const rowKelas = kelasIdx >= 0 ? row[kelasIdx] : "";
         const rowCabang = cabangIdx >= 0 ? row[cabangIdx] : "";
-        const kelasMatch = kelasList.includes(rowKelas);
+        const kelasMatch = hasMatchingClass(rowKelas, kelasList);
         // Only filter by cabang if student has a cabang value and schedule has cabang column
-        const cabangMatch = !studentCabang || cabangIdx === -1 || rowCabang === studentCabang;
+        const cabangMatch = !studentCabang || cabangIdx === -1 || valuesMatch(rowCabang, studentCabang);
         return kelasMatch && cabangMatch;
       })
       .map((row) => rowToRecord(jadwalReguler.headers, row));
@@ -1443,14 +1472,29 @@ export function App() {
     return sortRowsByDateDesc(rows);
   }, [filteredPresensi]);
 
+  const normalizePengajarHeader = (header: string) => {
+    const normalized = header.toLowerCase().trim();
+    if (normalized === "nama" || normalized === "nama pengajar" || normalized === "pengajar") {
+      return "Pengajar";
+    }
+    if (normalized === "mata pelajaran" || normalized === "mapel") {
+      return "Mata Pelajaran";
+    }
+    if (normalized === "no. whatsapp" || normalized === "no whatsapp" || normalized === "whatsapp") {
+      return "No. Whatsapp";
+    }
+    return header;
+  };
+
   const pengajarRecords = useMemo<RowRecord[]>(() => {
     if (!pengajar.headers.length && pengajar.data.length === 0) return [];
-    const hasPengajar = getHeaderIndex(pengajar.headers, "Pengajar") >= 0;
-    const hasMapel = getHeaderIndex(pengajar.headers, "Mata Pelajaran") >= 0;
+    const normalizedHeaders = pengajar.headers.map(normalizePengajarHeader);
+    const hasPengajar = getHeaderIndex(normalizedHeaders, "Pengajar") >= 0;
+    const hasMapel = getHeaderIndex(normalizedHeaders, "Mata Pelajaran") >= 0;
     if (hasPengajar || hasMapel) {
-      return pengajar.data.map((row) => rowToRecord(pengajar.headers, row));
+      return pengajar.data.map((row) => rowToRecord(normalizedHeaders, row));
     }
-    return [pengajar.headers, ...pengajar.data]
+    return [normalizedHeaders, ...pengajar.data]
       .map((row) => ({
         Pengajar: row[0] ?? "",
         "Mata Pelajaran": row[1] ?? "",
@@ -1460,14 +1504,13 @@ export function App() {
 
   const waPengajarRecords = useMemo<RowRecord[]>(() => {
     if (!waPengajar.headers.length && waPengajar.data.length === 0) return [];
-    const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, "");
-    const headers = waPengajar.headers;
-    const hasHeaders = headers.some((header) => normalize(header) === "pengajar");
+    const normalizedHeaders = waPengajar.headers.map(normalizePengajarHeader);
+    const hasHeaders = normalizedHeaders.some((header) => header === "Pengajar");
     if (hasHeaders) {
-      return waPengajar.data.map((row) => rowToRecord(headers, row));
+      return waPengajar.data.map((row) => rowToRecord(normalizedHeaders, row));
     }
 
-    const rows = [headers, ...waPengajar.data]
+    const rows = [normalizedHeaders, ...waPengajar.data]
       .map((row) => ({
         Pengajar: row[0] ?? "",
         "Mata Pelajaran": row[1] ?? "",
@@ -1518,10 +1561,22 @@ export function App() {
   const renderContent = () => {
     if (loading) {
       return (
-        <div className="flex min-h-[240px] items-center justify-center rounded-3xl border border-slate-200 bg-white/70">
-          <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
-            Memuat data...
-          </p>
+        <div className="flex min-h-[280px] items-center justify-center rounded-[32px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-red-50 p-8 shadow-sm">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="relative flex h-14 w-14 items-center justify-center">
+              <div className="absolute inset-0 rounded-full border-4 border-red-100" />
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-red-600 animate-spin" />
+              <div className="h-5 w-5 rounded-full bg-red-600/80" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-600">
+                Memuat data
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Sedang mengambil data terbaru dari sistem...
+              </p>
+            </div>
+          </div>
         </div>
       );
     }
@@ -1564,7 +1619,7 @@ export function App() {
             latestPermintaan={latestPermintaan}
             pengajarRows={pengajarRecords}
             mataPelajaranOptions={mataPelajaranOptions}
-            onNavigate={setActiveMenu}
+            onNavigate={handleMenuChange}
           />
         );
       case "Jadwal Reguler":
@@ -1833,7 +1888,7 @@ export function App() {
 
             {/* Reload */}
             <button
-              onClick={() => setRefreshToken((prev) => prev + 1)}
+              onClick={refreshData}
               title="Muat Ulang Data"
               className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-red-200 hover:text-red-600"
             >
@@ -1911,10 +1966,7 @@ export function App() {
               return (
                 <button
                   key={item}
-                  onClick={() => {
-                    setActiveMenu(item);
-                    setIsSidebarOpen(false);
-                  }}
+                  onClick={() => handleMenuChange(item)}
                   title={item}
                   className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all ${
                     isActive

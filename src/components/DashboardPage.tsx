@@ -4,7 +4,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { Modal } from "@/components/Modal";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import type { RowRecord } from "@/utils/dataHelpers";
-import { formatDateForStorage, formatDateValue, getRowValue, uniqueValues } from "@/utils/dataHelpers";
+import { formatDateForStorage, formatDateValue, getRowValue, optionContains, uniqueValues, uniqueStringValues } from "@/utils/dataHelpers";
 import { supabase } from "@/utils/supabaseClient";
 
 const rv = (row: RowRecord | null, key: string) => (row ? getRowValue(row, key) || "" : "");
@@ -134,9 +134,13 @@ export function DashboardPage({
   const [pelayananSubmit, setPelayananSubmit] = useState({ loading: false, error: "", success: "" });
 
   const mapelOptions = mataPelajaranOptions.length
-    ? mataPelajaranOptions
-    : uniqueValues(pengajarRows, "Mata Pelajaran");
-  const pengajarOptions = uniqueValues(pengajarRows, "Pengajar");
+    ? uniqueStringValues(mataPelajaranOptions)
+    : uniqueStringValues(uniqueValues(pengajarRows, "Mata Pelajaran"));
+
+  const filteredPengajarRows = pelayananForm.mataPelajaran
+    ? pengajarRows.filter((row) => optionContains(getRowValue(row, "Mata Pelajaran"), pelayananForm.mataPelajaran))
+    : pengajarRows;
+  const pengajarOptions = uniqueValues(filteredPengajarRows, "Pengajar");
 
   const resolvedTanggal = todaySchedule?.dateValue ?? "";
   const resolvedMapel = todaySchedule?.subject ?? "";
@@ -166,12 +170,16 @@ export function DashboardPage({
         nis: getRowValue(selectedStudent, "Nis"),
         nama: getRowValue(selectedStudent, "Nama"),
         tanggal: formatDateForStorage(resolvedTanggal),
-        kelas: getRowValue(selectedStudent, "Kelompok Kelas") || getRowValue(selectedStudent, "Kelompok") || getRowValue(selectedStudent, "Kelas") || null,
         mata_pelajaran: resolvedMapel,
-        status: presensiStatus,
+        kehadiran: presensiStatus,
         cabang: getRowValue(selectedStudent, "Cabang") || null,
+        materi_sub_bab: null,
+        prosen_penguasaan: null,
+        prosen_penjelasan: null,
+        prosen_kondisi: null,
+        catatan_pengajar: null,
       };
-      const { error: presensiError } = await supabase.from("presensi").insert([presensiPayload]);
+      const { error: presensiError } = await supabase.from("perkembangan_belajar").insert([presensiPayload]);
       if (presensiError) throw new Error(presensiError.message || "Gagal menyimpan presensi.");
       setPresensiSubmit({ loading: false, error: "", success: "Presensi berhasil disimpan." });
       setTimeout(() => { setPresensiOpen(false); resetPresensi(); }, 1200);
@@ -193,12 +201,12 @@ export function DashboardPage({
         nama: getRowValue(selectedStudent, "Nama"),
         tanggal: formatDateForStorage(pelayananForm.tanggal),
         mata_pelajaran: pelayananForm.mataPelajaran,
-        materi: pelayananForm.materi || null,
+        materi_sub_bab: pelayananForm.materi || null,
         durasi: pelayananForm.durasi || null,
         pengajar: pelayananForm.pengajar || null,
         cabang: getRowValue(selectedStudent, "Cabang") || null,
       };
-      const { error: pelayananError } = await supabase.from("pelayanan").insert([pelayananPayload]);
+      const { error: pelayananError } = await supabase.from("tambahan_pelayanan").insert([pelayananPayload]);
       if (pelayananError) throw new Error(pelayananError.message || "Gagal menyimpan pelayanan.");
       setPelayananSubmit({ loading: false, error: "", success: "Pelayanan berhasil disimpan." });
       setTimeout(() => { setPelayananOpen(false); resetPelayanan(); }, 1200);
@@ -509,7 +517,7 @@ export function DashboardPage({
 
       {/* ── PRESENSI MODAL ── */}
       <Modal
-        title="Input Presensi"
+        title="Presensi (Sakit/Izin/Alpha)"
         description="Tanggal dan mata pelajaran diisi otomatis dari jadwal reguler hari ini. Pilih status presensi."
         isOpen={presensiOpen}
         onClose={() => { setPresensiOpen(false); resetPresensi(); }}
@@ -571,7 +579,7 @@ export function DashboardPage({
 
       {/* ── PELAYANAN MODAL ── */}
       <Modal
-        title="Input Pelayanan/Jam Tambahan"
+        title="Presensi Pelayanan/Jam Tambahan"
         description="Isi data layanan tambahan untuk dicatat ke basis data."
         isOpen={pelayananOpen}
         onClose={() => { setPelayananOpen(false); resetPelayanan(); }}

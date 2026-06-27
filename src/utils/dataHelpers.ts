@@ -58,13 +58,53 @@ export const matchesDateFilter = (value: string, filter: string) => {
   return value.includes(filter);
 };
 
+export const normalizeOptionValue = (value: string) => {
+  if (!value) return "";
+  return value
+    .toString()
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\s*,\s*/g, ", ")
+    .replace(/\s*;\s*/g, "; ")
+    .replace(/\s+/g, " ");
+};
+
 export const uniqueValues = (rows: RowRecord[], key: string) => {
   const values = new Set<string>();
   rows.forEach((row) => {
-    const value = row[key];
+    const value = normalizeOptionValue(row[key]);
     if (value) values.add(value);
   });
-  return Array.from(values).sort();
+  return Array.from(values).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+};
+
+export const uniqueStringValues = (values: Array<string | null | undefined>) => {
+  const set = new Set<string>();
+  values.forEach((value) => {
+    const normalized = normalizeOptionValue(value ?? "");
+    if (!normalized) return;
+    // Split combined lists like "A, B; C" into separate options
+    const parts = normalized.split(/[,;]\s*/).map((p) => normalizeOptionValue(p)).filter(Boolean);
+    parts.forEach((p) => set.add(p));
+  });
+  return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+};
+
+export const splitOptionValues = (value: string) => {
+  const normalized = normalizeOptionValue(value);
+  if (!normalized) return [];
+  return normalized
+    .split(/[,;]\s*/)
+    .map((item) => normalizeOptionValue(item))
+    .filter(Boolean);
+};
+
+export const optionContains = (value: string, target: string) => {
+  if (!value || !target) return false;
+  const normalizedTarget = normalizeOptionValue(target).toLowerCase();
+  return splitOptionValues(value)
+    .map((item) => item.toLowerCase())
+    .some((item) => item === normalizedTarget || item.includes(normalizedTarget) || normalizedTarget.includes(item));
 };
 
 function parseFlexibleDate(value: string) {

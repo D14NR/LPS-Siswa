@@ -10,7 +10,9 @@ import {
   getRowValue,
   matchesDateFilter,
   matchesTextFilter,
+  optionContains,
   sortRowsByDateDesc,
+  uniqueStringValues,
   uniqueValues,
 } from "@/utils/dataHelpers";
 import { supabase } from "@/utils/supabaseClient";
@@ -54,15 +56,24 @@ export function PelayananPage({
   const [dateFilter, setDateFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const mapelOptions = useMemo(
-    () =>
-      mataPelajaranOptions.length
-        ? mataPelajaranOptions
-        : uniqueValues(pengajarRows, "Mata Pelajaran"),
-    [mataPelajaranOptions, pengajarRows]
-  );
+  const mapelOptions = useMemo(() => {
+    const source = mataPelajaranOptions.length
+      ? mataPelajaranOptions
+      : uniqueValues(pengajarRows, "Mata Pelajaran");
+    return uniqueStringValues(source);
+  }, [mataPelajaranOptions, pengajarRows]);
 
-  const pengajarOptions = useMemo(() => uniqueValues(pengajarRows, "Pengajar"), [pengajarRows]);
+  const filteredPengajarRows = useMemo(() => {
+    if (!formState.mataPelajaran) return pengajarRows;
+    return pengajarRows.filter((row) =>
+      optionContains(getRowValue(row, "Mata Pelajaran"), formState.mataPelajaran)
+    );
+  }, [formState.mataPelajaran, pengajarRows]);
+
+  const pengajarOptions = useMemo(
+    () => uniqueValues(filteredPengajarRows, "Pengajar"),
+    [filteredPengajarRows]
+  );
 
   const filteredRows = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
@@ -113,13 +124,13 @@ export function PelayananPage({
         nama: getRowValue(selectedStudent, "Nama"),
         tanggal: formatDateForStorage(formState.tanggal),
         mata_pelajaran: formState.mataPelajaran,
-        materi: formState.materi || null,
+        materi_sub_bab: formState.materi || null,
         durasi: formState.durasi || null,
         pengajar: formState.pengajar || null,
         cabang: getRowValue(selectedStudent, "Cabang") || null,
       };
 
-      const { error } = await supabase.from("pelayanan").insert([payload]);
+      const { error } = await supabase.from("tambahan_pelayanan").insert([payload]);
       if (error) throw new Error(error.message || "Gagal menyimpan pelayanan.");
       setSubmitState({ loading: false, error: "", success: "Pelayanan berhasil disimpan." });
       setFlashMessage("Pelayanan berhasil disimpan.");

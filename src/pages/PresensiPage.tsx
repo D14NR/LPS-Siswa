@@ -12,6 +12,7 @@ import {
   matchesTextFilter,
   sortRowsByDateDesc,
   uniqueValues,
+  uniqueStringValues,
 } from "@/utils/dataHelpers";
 import { DonutChart } from "@/components/Charts";
 import { supabase } from "@/utils/supabaseClient";
@@ -59,13 +60,12 @@ export function PresensiPage({
   const [dateFilter, setDateFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const mapelOptions = useMemo(
-    () =>
-      mataPelajaranOptions.length
-        ? mataPelajaranOptions
-        : uniqueValues(pengajarRows, "Mata Pelajaran"),
-    [mataPelajaranOptions, pengajarRows]
-  );
+  const mapelOptions = useMemo(() => {
+    const source = mataPelajaranOptions.length
+      ? mataPelajaranOptions
+      : uniqueValues(pengajarRows, "Mata Pelajaran");
+    return uniqueStringValues(source);
+  }, [mataPelajaranOptions, pengajarRows]);
 
   const filteredRows = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
@@ -130,16 +130,17 @@ export function PresensiPage({
         nis: getRowValue(selectedStudent, "Nis"),
         nama: getRowValue(selectedStudent, "Nama"),
         tanggal: formatDateForStorage(resolvedTanggal),
-        kelas:
-          getRowValue(selectedStudent, "Kelompok Kelas") ||
-          getRowValue(selectedStudent, "Kelompok") ||
-          getRowValue(selectedStudent, "Kelas") || null,
         mata_pelajaran: resolvedMapel,
-        status: formState.status,
+        kehadiran: formState.status,
         cabang: getRowValue(selectedStudent, "Cabang") || null,
+        materi_sub_bab: null,
+        prosen_penguasaan: null,
+        prosen_penjelasan: null,
+        prosen_kondisi: null,
+        catatan_pengajar: null,
       };
 
-      const { error } = await supabase.from("presensi").insert([payload]);
+      const { error } = await supabase.from("perkembangan_belajar").insert([payload]);
       if (error) throw new Error(error.message || "Gagal menyimpan presensi.");
       setSubmitState({ loading: false, error: "", success: "Presensi berhasil disimpan." });
       setFlashMessage("Presensi berhasil disimpan.");
